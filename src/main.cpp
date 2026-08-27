@@ -57,6 +57,10 @@ void write(tumopp::Simulation& simulation) {
         ofstream ofs{"wgds" + ext};
         tissue.write_wgds(ofs);
     } 
+    if (tissue.has_cna()) {
+        ofstream ofs{"cna" + ext};
+        tissue.write_cna(ofs);
+    }
     if (tissue.has_benchmark()) {
         ofstream ofs{"benchmark" + ext};
         tissue.write_benchmark(ofs);

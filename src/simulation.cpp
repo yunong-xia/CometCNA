@@ -201,6 +201,9 @@ void Simulation::run() {
             VM.at("path").get<std::string>(),
             *init_event_rates_,
             seeder(),
+            seeder(),
+            seeder(),
+            seeder(),
             VM.at("benchmark").get<bool>()
         );
         bool success = tissue_->grow(
@@ -252,6 +255,12 @@ std::string Simulation::wgds() const {    //ruping WGD
     if (!tissue_->has_wgds()) return std::string{};
     std::ostringstream oss;
     tissue_->write_wgds(oss);
+    return oss.str();
+}
+std::string Simulation::cna() const {    //Yunong CNA
+    if (!tissue_->has_cna()) return std::string{};
+    std::ostringstream oss;
+    tissue_->write_cna(oss);
     return oss.str();
 }
 std::string Simulation::passengers() const {

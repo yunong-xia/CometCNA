@@ -49,6 +49,8 @@ class Simulation {
     std::string drivers() const;
     //! Use Tissue.write_wgds  ruping
     std::string wgds() const;
+    //! Use Tissue.write_cna
+    std::string cna() const;
     //! Use Tissue.write_passengers
     std::string passengers() const;
     //! Use Tissue.write_benchmark

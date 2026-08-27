@@ -7,13 +7,16 @@
 
 #include "coord.hpp"
 #include "random.hpp"
+#include "genome.hpp"
 
 #include <cstdint>
 #include <vector>
 #include <array>
 #include <unordered_set>
+#include <unordered_map>
 #include <string>
 #include <memory>
+
 
 namespace tumopp {
 
@@ -76,10 +79,24 @@ struct CellParams {
     //! \f$\sigma_\rho\f$
     double SD_MIGRA = 0.0;
     //! \f$\mu_\alpha\f$
-    double RATE_PASSENGER = 0.0;    
+    double RATE_PASSENGER = 0.0;
     double RATE_PASSENGER_WGD = 0.0;  //add wgd rate to double the rate_passenger
     double RATE_WGD = 0.0;
+
+    //! \f$\mu_\text{CNA}\f$
+    double RATE_CNA = 0.24; // Model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
+    double RATE_WHICH_DAUGHTER = 0.5; // Model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
+    // Probability of a new CNA per cell division is 0.24. The new CNA is assigned to either daughter cell.
+
+    // double RATE_FOCAL_GAIN = 0.0; // focal CNA gain rate (Yunong)
+    // double RATE_FOCAL_LOSS = 0.0; // focal CNA loss rate (Yunong)
+    
+    // double RATE_CHROM_MISSEGREGATE = 0.0; // chromosomal CNA missegregation rate (Yunong)
+
+    // double RATE_ARM_MISSEGREGATE = 0.0; // arm-level CNA missegregation rate (Yunong)
 };
+
+
 
 /*! @brief Cancer cell
 */
@@ -91,12 +108,13 @@ class Cell {
     Cell() = default;
     //! Constructor for first cells
     Cell(const coord_t& v, unsigned i,
-         std::shared_ptr<EventRates> er=std::make_shared<EventRates>()) noexcept:
-      event_rates_(er), coord_(v), id_(i) {}
+         std::shared_ptr<EventRates> er=std::make_shared<EventRates>()):
+      event_rates_(er), genome_(std::make_shared<Genome>()), coord_(v), id_(i) {} // Yunong: Initialize the diploid genome
     //! Copy constructor
     Cell(const Cell& other) noexcept:
       ancestor_(other.ancestor_),
       event_rates_(other.event_rates_),
+      genome_(other.genome_), // Yunong: add genome to copy constructor
       time_of_birth_(other.time_of_birth_),
       coord_(other.coord_),
       id_(other.id_),
@@ -116,6 +134,24 @@ class Cell {
     std::string mutate(urbg_t&, urbg_t&);
     //! passenger mutation
     std::string mutate2(urbg_t&, urbg_t&);
+    
+    //! CNA occurence
+    bool cna_event_occur(urbg_t&);  //Yunong: check if a CNA event occurs]
+    //! which daughter cell gets the CNA event
+    bool new_daughter_cell_gets_cna(urbg_t&);  //Yunong: check which daughter cell gets the CNA event
+    //! Apply CNA mutation if occur 
+    std::string mutate_cna(urbg_t& engine4);  //Yunong: apply CNA mutation if occur
+
+    //! viability check for the cell with mutated genome
+    bool is_viable(double max_ploidy = 4.5,
+                   int max_segment_cn = 8,
+                   double max_normalized_segment_cn = 4.0,
+                   double max_nullisomy_fraction = 0.2) const;
+
+    //! Release genome memory when the genome will not be used anymore
+    //! If other cells still share that same Genome, this object is not destroyed.
+    void clear_genome_ptr() noexcept {genome_.reset();}
+
     //! driver mutation on all traits
     std::string force_mutate(urbg_t&);
     //! seeding another tumor
@@ -201,6 +237,8 @@ class Cell {
     std::shared_ptr<Cell> ancestor_;
     //! Set of event rates (copy-on-write)
     std::shared_ptr<EventRates> event_rates_;
+    //! Genome of the cell
+    std::shared_ptr<Genome> genome_;  // Yunong: add genome to cell
     //! time of birth
     double time_of_birth_ = 0.0;
     //! time of death

@@ -23,10 +23,12 @@ Tissue::Tissue(
   const uint_fast32_t seed,
   const uint_fast32_t seed2,
   const uint_fast32_t seed3,
+  const uint_fast32_t seed4,
   const bool enable_benchmark):
   engine_(std::make_unique<urbg_t>(seed)),
   engine2_(std::make_unique<urbg_t>(seed2)),
-  engine3_(std::make_unique<urbg_t>(seed3)) {
+  engine3_(std::make_unique<urbg_t>(seed3)),
+  engine4_(std::make_unique<urbg_t>(seed4)) {
     if (enable_benchmark) {
         benchmark_ = std::make_unique<Benchmark>();
         benchmark_->append(0u);
@@ -45,6 +47,7 @@ Tissue::Tissue(
         for (const auto& mother: extant_cells_) {
             const auto daughter = std::make_shared<Cell>(*mother);
             const auto ancestor = std::make_shared<Cell>(*mother);
+            ancestor->clear_genome_ptr();
             ancestor->set_time_of_death(0.0, extant_cells_.size());   //ruping
             mother->set_time_of_birth(0.0, ++id_tail_, ancestor, extant_cells_.size());
             daughter->set_time_of_birth(0.0, ++id_tail_, ancestor, extant_cells_.size());
@@ -100,14 +103,19 @@ bool Tissue::grow(const size_t max_size, const double max_time,
             snapshots_append();
             time_snapshot = ++i_snapshot * snapshot_interval;
         }
-        if (mother->next_event() == Event::birth) {
 
+        // CELL BIRTH
+        if (mother->next_event() == Event::birth) {
+            
+
+            // SEEDING
             // ruping: random sampling of seeding cells, and forcing them to be dead
             const auto cur_size = extant_cells_.size();
             if ( cur_size > 0  && cur_size < max_size && cur_size != seedingSize_cur && cur_size % seeding_size == 0 ) {  //sample according to size
 
                mother->set_time_of_death(time_, extant_cells_.size());
                // ruping: keep the information of the seeding cells
+               mother->clear_genome_ptr(); // Yunong: remove its genome ptr
                dead_cells_.insert(mother);
 
                if (snapshot_interval == 0) { // when plateau
@@ -122,66 +130,143 @@ bool Tissue::grow(const size_t max_size, const double max_time,
                continue;
 
             }
-
-            // ruping: consider WGD here for the mother (WGD does not change cell location)
-	    const auto ancestor = std::make_shared<Cell>(*mother);     //make a copy of the mother cell
-	    auto wgd_result = mother->wgd(*engine_);   // wgd occur at a rare rate. it only occur once. if the cell already has wgd, it won't acquire more wgds.
-	    wgds_ << wgd_result;         //record the WGD
-	    
-	    if (!wgd_result.empty()) {   //WGD occurred
-	      
-	      //need to update the cell id, and so on
-	      ancestor->set_time_of_death(time_, extant_cells_.size());                       //ruping: let the original cell die
-	      mother->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());   //fresh the id for the WGDed cell, it stays in the extant_cells_
-              queue_push(mother);                                                             //push the WGDed cell into queue
-	      
-	    } else {     // No WGD, division and insert daughter cell
-	    
-	      const auto daughter = std::make_shared<Cell>(*mother);
-	      if (insert(daughter)) {                             // if insert the new born cell is successful
-                //const auto ancestor = std::make_shared<Cell>(*mother);
-                ancestor->set_time_of_death(time_, extant_cells_.size());   //ruping
-                mother->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());
-                daughter->differentiate(*engine_);
-                daughter->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());
-
-                drivers_ << mother->mutate(*engine_, *engine3_);
-                drivers_ << daughter->mutate(*engine_, *engine3_);
-                if (! stopMutH) {                                 //ruping
-		  passengers_ << mother->mutate2(*engine2_, *engine3_);
-		  passengers_ << daughter->mutate2(*engine2_, *engine3_);
-                } else {                                          //ruping, stop passenger mutation when tumor reach half size, to reduce memory usage
-                  if (cur_size <= max_size*0.5) {
-                    passengers_ << mother->mutate2(*engine2_, *engine3_);
-                    passengers_ << daughter->mutate2(*engine2_, *engine3_);
-                  }
-                }
-
-                if (extant_cells_.size() == mutation_timing) {  //introduce mutation at specific cell
-		  mutation_timing = 0u; // once
-		  drivers_ << daughter->force_mutate(*engine_);
-                }
-                
-                queue_push(mother);
-                queue_push(daughter);
-                const auto size = extant_cells_.size();
-                if ((size % progress_interval) == 0u) {
-		  if (verbose) std::cerr << "\r" << size;
-		  if (benchmark_) benchmark_->append(size);
-                }
-	      } else {
-                queue_push(mother, true);
-                continue;                            // skip write()
-	      }
-	    }
             
+
+            // WGD
+            // ruping: consider WGD here for the mother (WGD does not change cell location)
+            const auto ancestor = std::make_shared<Cell>(*mother);     //make a copy of the mother cell
+            ancestor->clear_genome_ptr();
+            auto wgd_result = mother->wgd(*engine_);   // wgd occur at a rare rate. it only occur once. if the cell already has wgd, it won't acquire more wgds.
+
+            // Yunong: wgd_result here is "id\twgd\t\t\t\t\n"
+            cna_ << wgd_result;         // Yunong: save the WGD also in the CNA event records
+
+            // Yunong: now change wgd_results to "id\twgd\n"
+            std::string tabs = "\t\t\t\t\n";
+            auto pos = wgd_result.find(tabs);
+            if (pos != std::string::npos) {
+                wgd_result.replace(pos, tabs.size(), "\n");
+            }
+            wgds_ << wgd_result;         //record the WGD
+            
+            if (!wgd_result.empty()) {   //WGD occurred
+
+                // Yunong: check viability of the cell after WGD immediately.
+                // if not viable
+                if (!mother->is_viable()) {
+                    mother->set_time_of_death(time_, extant_cells_.size());
+                    mother->clear_genome_ptr();
+                    dead_cells_.insert(mother);
+                    extant_cells_.erase(mother);
+                    continue;  // skip write()
+                }
+                //need to update the cell id, and so on
+                ancestor->set_time_of_death(time_, extant_cells_.size());                       //ruping: let the original cell die
+                mother->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());   //fresh the id for the WGDed cell, it stays in the extant_cells_
+                queue_push(mother);                                                             //push the WGDed cell into queue
+            
+
+            // MUTATIONS OTHER THAN WGD
+            } else {     // No WGD, division and insert daughter cell
+                
+
+                // CNA
+                // Yunong
+                // if CNA occurs after division
+                const auto cna_occur = mother->cna_event_occur(*engine_);  // check if CNA occurs
+                auto which_cell_get_cna = 0;  // check which daughter cell gets the CNA event
+                // 0: no CNA event, 1: mother gets CNA event, 2: daughter gets CNA event
+                if (cna_occur) {
+                    if (mother->new_daughter_cell_gets_cna(*engine_)) {
+                        which_cell_get_cna = 1;  // mother gets CNA event
+                    } else {
+                        // daughter will get CNA event after division
+                        which_cell_get_cna = 2;
+                    }
+                }
+
+                const auto daughter = std::make_shared<Cell>(*mother);
+                if (insert(daughter)) {                             // if insert the new born cell is successful
+                    //const auto ancestor = std::make_shared<Cell>(*mother);
+                    ancestor->set_time_of_death(time_, extant_cells_.size());   //ruping
+                    mother->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());
+                    daughter->differentiate(*engine_);
+                    daughter->set_time_of_birth(time_, ++id_tail_, ancestor, extant_cells_.size());
+                    
+
+                    // DRIVERS
+                    drivers_ << mother->mutate(*engine_, *engine3_);
+                    drivers_ << daughter->mutate(*engine_, *engine3_);
+
+                    // NOW, CNA event occur, record the CNA mutation. Yunong
+
+                    // first determine if CNA occurs, and which daughter get it
+                    if (which_cell_get_cna == 1) {  // mother gets CNA event
+                        cna_ << mother->mutate_cna(*engine4_);
+
+                        // check viability
+                        // if not viable, then delete the mother cell, and put it into dead_cells_
+                        if (!mother->is_viable()) {
+                            mother->set_time_of_death(time_, extant_cells_.size());
+                            mother->clear_genome_ptr();
+                            dead_cells_.insert(mother);
+                            extant_cells_.erase(mother);
+                            continue;  // skip write()
+                        }
+                    } else if (which_cell_get_cna == 2) {  // daughter gets CNA event
+                        cna_ << daughter->mutate_cna(*engine4_);
+
+                        // check viability
+                        if (!daughter->is_viable()) {
+                            daughter->set_time_of_death(time_, extant_cells_.size());
+                            daughter->clear_genome_ptr();
+                            dead_cells_.insert(daughter);
+                            extant_cells_.erase(daughter);
+                            queue_push(mother);
+                            continue;  // skip write()
+                        }
+                    }
+                    // PASSENGERS
+                    if (!stopMutH) {                                 //ruping
+                        passengers_ << mother->mutate2(*engine2_, *engine3_);
+                        passengers_ << daughter->mutate2(*engine2_, *engine3_);
+                    } else {                                          //ruping, stop passenger mutation when tumor reach half size, to reduce memory usage
+                        if (cur_size <= max_size * 0.5) {
+                            passengers_ << mother->mutate2(*engine2_, *engine3_);
+                            passengers_ << daughter->mutate2(*engine2_, *engine3_);
+                        }
+                    }
+
+                    if (extant_cells_.size() == mutation_timing) {  //introduce mutation at specific cell
+                        mutation_timing = 0u; // once
+                        drivers_ << daughter->force_mutate(*engine_);
+                    }
+
+                    queue_push(mother);
+                    queue_push(daughter);
+                    const auto size = extant_cells_.size();
+                    if ((size % progress_interval) == 0u) {
+                        if (verbose) std::cerr << "\r" << size;
+                        if (benchmark_) benchmark_->append(size);
+                    }
+                } else {
+                    queue_push(mother, true);
+                    continue;                            // skip write()
+                }
+            }
+        
+
+        // CELL DEATH
         } else if (mother->next_event() == Event::death) {
           
             mother->set_time_of_death(time_, extant_cells_.size());  // ruping: re-remember the death time of the dead cell
+            mother->clear_genome_ptr(); // Yunong: clear the genome ptr
             dead_cells_.insert(mother);        // ruping: need to keep the information of dead cells
             extant_cells_.erase(mother);
             if (extant_cells_.empty()) break;
-            
+        
+
+        // CELL MIGRATION
         } else {
             migrate(mother);
             queue_push(mother);
@@ -437,7 +522,13 @@ std::ostream& Tissue::write_wgds(std::ostream& ost) const {    //ruping WGD
   ost << "id\tevent\n" << wgds_.rdbuf();
   return ost;
 }
-  
+
+std::ostream& Tissue::write_cna(std::ostream& ost) const {  // Yunong CNA (including WGD)
+    ost << "id\tcna_event\tchr\tarm\tstart\tend\n" << cna_.rdbuf();
+    return ost;
+}
+
+
 std::ostream& Tissue::write_passengers(std::ostream& ost) const {
     ost << "id\tcoor\n" << passengers_.rdbuf();
     return ost;

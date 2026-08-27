@@ -38,6 +38,7 @@ class Tissue {
       uint_fast32_t seed=std::random_device{}(),
       uint_fast32_t seed2=std::random_device{}(),
       uint_fast32_t seed3=std::random_device{}(),
+      uint_fast32_t seed4=std::random_device{}(),
       bool enable_benchmark=false);
     ~Tissue();
 
@@ -67,6 +68,8 @@ class Tissue {
     std::ostream& write_drivers(std::ostream&) const;
     //! Write #wgds_ ruping
     std::ostream& write_wgds(std::ostream&) const;     //ruping WGD
+    //! Write #CNAs Yunong
+    std::ostream& write_cna(std::ostream&) const; // Yunong Xia CNA (including WGD)
     //! Write #passengers_
     std::ostream& write_passengers(std::ostream&) const;
     //! Write #seedingCells_
@@ -79,6 +82,7 @@ class Tissue {
     bool has_snapshots() const {return snapshots_.rdbuf()->in_avail();};
     bool has_drivers() const {return drivers_.rdbuf()->in_avail();}
     bool has_wgds() const {return wgds_.rdbuf()->in_avail();}  //ruping WGD
+    bool has_cna() const {return cna_.rdbuf()->in_avail();} // Yunong CNA
     bool has_benchmark() const {return bool(benchmark_);}
     //! @endcond
 
@@ -194,8 +198,12 @@ class Tissue {
     std::stringstream wgds_;
     //! record passenger mutations
     std::stringstream passengers_;
+    //! record CNA events
+    std::stringstream cna_;
     //! record seeding cells
     std::stringstream seedingCells_;
+    //! record CNA mutations
+    std::stringstream cnas_;
 
     //! record resource usage
     std::unique_ptr<Benchmark> benchmark_;
@@ -206,6 +214,8 @@ class Tissue {
     std::unique_ptr<urbg_t> engine2_;
     //! passenger mutation random number generator
     std::unique_ptr<urbg_t> engine3_;
+    //! CNA mutation random number generator
+    std::unique_ptr<urbg_t> engine4_;
 };
 
 } // namespace tumopp

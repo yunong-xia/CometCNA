@@ -18,6 +18,7 @@ configure_file(
 target_sources(${PROJECT_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/cell.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/coord.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/genome.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/simulation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/tissue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/version.cpp

@@ -56,7 +56,13 @@ bernoulli_distribution BERN_MUT_DEATH_WGD(Cell::param().RATE_DEATH_WGD);     // 
 bernoulli_distribution BERN_MUT_ALPHA(Cell::param().RATE_ALPHA);
 bernoulli_distribution BERN_MUT_MIGRA(Cell::param().RATE_MIGRA);
 bernoulli_distribution BERN_MUT_MIGRA_WGD(Cell::param().RATE_MIGRA_WGD);    // double the migration driver rate for WGD
+
 bernoulli_distribution BERN_WGD (Cell::param().RATE_WGD);       //ruping WGD
+
+bernoulli_distribution BERN_CNA (Cell::param().RATE_CNA);       //Yunong. CNA rate from Navins et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
+bernoulli_distribution BERN_WHICH_DAUGHTER (Cell::param().RATE_WHICH_DAUGHTER);       //Yunong. CNA event assignment probability
+
+
 std::normal_distribution<double> GAUSS_BIRTH(Cell::param().MEAN_BIRTH, Cell::param().SD_BIRTH);
 std::normal_distribution<double> GAUSS_DEATH(Cell::param().MEAN_DEATH, Cell::param().SD_DEATH);
 std::normal_distribution<double> GAUSS_ALPHA(Cell::param().MEAN_ALPHA, Cell::param().SD_ALPHA);
@@ -100,69 +106,73 @@ void Cell::differentiate(urbg_t& engine) {
 std::string Cell::wgd(urbg_t& engine) {  //ruping WGD
     auto oss = wtl::make_oss();
     if (is_wgd()) {                      // already has WGD
-      return oss.str();
+        return oss.str();
     } else {
-      if (BERN_WGD(engine)) {
-        oss << id_ << "\twgd" << "\n";
-	wgd_status_ += 1;                // change wgd_status of the cell
-      }
-      return oss.str();
+        if (BERN_WGD(engine)) {
+            // double the genome object
+
+            // first create a genome copy
+            genome_ = std::make_shared<Genome>(*genome_); // Yunong
+            // then double CN states 
+            oss << id_ << "\t" << genome_->mutate_wgd() << "\n";
+            wgd_status_ += 1;                // change wgd_status of the cell
+        }
+        return oss.str();
     }
 }
-
-  
+ 
 std::string Cell::mutate(urbg_t& engine, urbg_t& engine3) {
     auto oss = wtl::make_oss();
     if (is_wgd()) {                             // double the driver rates for WGD
-      if (BERN_MUT_BIRTH_WGD(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_BIRTH(engine);
-        oss << id_ << "\tbeta\t" << std::to_string(uniform_distribution_birth(engine3)) << "\t" << s << "\n";
-        event_rates_->birth_rate *= (s += 1.0);
-      }
-      if (BERN_MUT_DEATH_WGD(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_DEATH(engine);
-        oss << id_ << "\tdelta\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
-        event_rates_->death_rate *= (s += 1.0);
-      }
-      if (BERN_MUT_ALPHA(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_ALPHA(engine);
-        oss << id_ << "\talpha\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
-        event_rates_->death_prob *= (s += 1.0);
-      }
-      if (BERN_MUT_MIGRA_WGD(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_MIGRA(engine);
-        oss << id_ << "\trho\t" << std::to_string(uniform_distribution_migrate(engine3)) << "\t" << s << "\n";
-        event_rates_->migra_rate *= (s += 1.0);
-      }
+        if (BERN_MUT_BIRTH_WGD(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_BIRTH(engine);
+            oss << id_ << "\tbeta\t" << std::to_string(uniform_distribution_birth(engine3)) << "\t" << s << "\n";
+            event_rates_->birth_rate *= (s += 1.0);
+        }
+        if (BERN_MUT_DEATH_WGD(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_DEATH(engine);
+            oss << id_ << "\tdelta\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
+            event_rates_->death_rate *= (s += 1.0);
+        }
+        if (BERN_MUT_ALPHA(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_ALPHA(engine);
+            oss << id_ << "\talpha\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
+            event_rates_->death_prob *= (s += 1.0);
+        }
+        if (BERN_MUT_MIGRA_WGD(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_MIGRA(engine);
+            oss << id_ << "\trho\t" << std::to_string(uniform_distribution_migrate(engine3)) << "\t" << s << "\n";
+            event_rates_->migra_rate *= (s += 1.0);
+        }
     } else {
-      if (BERN_MUT_BIRTH(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_BIRTH(engine);
-        oss << id_ << "\tbeta\t" << std::to_string(uniform_distribution_birth(engine3)) << "\t" << s << "\n";
-        event_rates_->birth_rate *= (s += 1.0);
-      }
-      if (BERN_MUT_DEATH(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_DEATH(engine);
-        oss << id_ << "\tdelta\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
-        event_rates_->death_rate *= (s += 1.0);
-      }
-      if (BERN_MUT_ALPHA(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_ALPHA(engine);
-        oss << id_ << "\talpha\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
-        event_rates_->death_prob *= (s += 1.0);
-      }
-      if (BERN_MUT_MIGRA(engine)) {
-        event_rates_ = std::make_shared<EventRates>(*event_rates_);
-        double s = GAUSS_MIGRA(engine);
-        oss << id_ << "\trho\t" << std::to_string(uniform_distribution_migrate(engine3)) << "\t" << s << "\n";
-        event_rates_->migra_rate *= (s += 1.0);
-      }
+        if (BERN_MUT_BIRTH(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_BIRTH(engine);
+            oss << id_ << "\tbeta\t" << std::to_string(uniform_distribution_birth(engine3)) << "\t" << s << "\n";
+            event_rates_->birth_rate *= (s += 1.0);
+        }
+        if (BERN_MUT_DEATH(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_DEATH(engine);
+            oss << id_ << "\tdelta\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
+            event_rates_->death_rate *= (s += 1.0);
+        }
+        if (BERN_MUT_ALPHA(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_ALPHA(engine);
+            oss << id_ << "\talpha\t" << std::to_string(uniform_distribution_death(engine3)) << "\t" << s << "\n";
+            event_rates_->death_prob *= (s += 1.0);
+        }
+        if (BERN_MUT_MIGRA(engine)) {
+            event_rates_ = std::make_shared<EventRates>(*event_rates_);
+            double s = GAUSS_MIGRA(engine);
+            oss << id_ << "\trho\t" << std::to_string(uniform_distribution_migrate(engine3)) << "\t" << s << "\n";
+            event_rates_->migra_rate *= (s += 1.0);
+        }
     }
     return oss.str();
 }
@@ -173,8 +183,9 @@ std::string Cell::mutate2(urbg_t& engine2, urbg_t& engine3) {    //ruping: passe
     if (is_wgd()) n_passengers = poisson_distribution_wgd(engine2);
 
     std::string passengers = "";
-    for(int n=0; n < n_passengers; ++n)
-      passengers = passengers + std::to_string(uniform_distribution(engine3)) + ",";
+    for (int n = 0; n < n_passengers; ++n) {
+        passengers = passengers + std::to_string(uniform_distribution(engine3)) + ",";
+    }
     
     oss << id_ << "\t" << passengers << "\n";
     return oss.str();
@@ -196,6 +207,48 @@ std::string Cell::force_mutate(urbg_t& engine) {
     if (s_alpha != 0.0) {oss << id_ << "\talpha\t" << s_alpha << "\n";}
     if (s_migra != 0.0) {oss << id_ << "\trho\t"   << s_migra << "\n";}
     return oss.str();
+}
+
+// assume this cell is the mother cell before division, 
+// this function check if the CNA event occurs
+// Yunong
+bool Cell::cna_event_occur(urbg_t& engine) {
+    return bernoulli(PARAM_.RATE_CNA, engine);
+}
+
+// assume this cell is the mother cell before division,
+// this function check which daughter cell gets the CNA event
+// Yunong 
+bool Cell::new_daughter_cell_gets_cna(urbg_t& engine) {
+    return bernoulli(PARAM_.RATE_WHICH_DAUGHTER, engine);
+}
+
+// Assume this is one daughter cell after division,
+// and it is selected to get CNA events.
+// Yunong
+std::string Cell::mutate_cna(urbg_t& engine4) {
+    // create a copied genome for this cell if it mutates CNA, otherwise it will share the genome with its mother cell
+    genome_ = std::make_shared<Genome>(*genome_);
+
+    // then mutate the copied genome
+    auto oss = wtl::make_oss();
+    oss << id_ << "\t" << genome_->mutate_cna_minussi_navins(engine4);
+    return oss.str();
+}
+
+
+// Yunong: viability check given the genome of this cell
+bool Cell::is_viable(double max_ploidy, 
+                     int max_segment_cn, 
+                     double max_normalized_segment_cn, 
+                     double max_nullisomy_fraction) const {
+    if (!genome_) {
+        return false;
+    }
+    return genome_->is_viable(max_ploidy, 
+                              max_segment_cn, 
+                              max_normalized_segment_cn, 
+                              max_nullisomy_fraction);
 }
 
 std::string Cell::seeding(unsigned int Ns) {
