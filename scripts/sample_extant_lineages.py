@@ -27,6 +27,7 @@ def parse_args():
     )
     parser.add_argument("sample_size", type=int, nargs="?", help="Number of extant cells to sample")
     parser.add_argument("--sample-ids", help="TSV containing an id column, instead of random sampling")
+    parser.add_argument("--cell-id", type=int, help="Trace one cell ID, including a dead ancestor")
     parser.add_argument("--mrca-output", help="Write the shared most recent ancestor as a TSV")
     parser.add_argument(
         "-o",
@@ -98,6 +99,19 @@ def read_sample_ids(sample_path, population_path):
     if missing:
         raise SystemExit(f"Sample IDs not found as extant cells: {sorted(missing, key=int)[:10]}")
     return ids
+
+
+def read_cell_id(cell_id, population_path):
+    if cell_id <= 0:
+        raise SystemExit("cell ID must be positive")
+    with open_text(population_path) as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if "id" not in (reader.fieldnames or []):
+            raise SystemExit("Population must contain an id column")
+        for row in reader:
+            if row["id"] == str(cell_id):
+                return [str(cell_id)]
+    raise SystemExit(f"Cell ID not found in population: {cell_id}")
 
 
 def trace_lineages(sorted_cells_path, sample_ids, output_handle, mrca_handle=None):
@@ -178,13 +192,17 @@ def trace_lineages(sorted_cells_path, sample_ids, output_handle, mrca_handle=Non
 
 def main():
     args = parse_args()
-    if args.sample_ids and args.sample_size is not None:
-        raise SystemExit("Use either sample_size or --sample-ids")
-    if not args.sample_ids and (args.sample_size is None or args.sample_size <= 0):
+    selected_modes = sum(bool(value) for value in (args.sample_ids, args.cell_id is not None))
+    if selected_modes > 1 or (selected_modes and args.sample_size is not None):
+        raise SystemExit("Use only one of sample_size, --sample-ids, or --cell-id")
+    if not selected_modes and (args.sample_size is None or args.sample_size <= 0):
         raise SystemExit("sample_size must be positive")
 
     rng = random.Random(args.seed)
-    if args.sample_ids:
+    if args.cell_id is not None:
+        sample_ids = read_cell_id(args.cell_id, args.population)
+        extant_seen = "not_counted"
+    elif args.sample_ids:
         sample_ids = read_sample_ids(args.sample_ids, args.population)
         extant_seen = "not_counted"
     else:
