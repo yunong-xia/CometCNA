@@ -76,7 +76,7 @@ if(BUILD_EXECUTABLE)
     target_link_libraries(${PROJECT_NAME}-exe PRIVATE ZLIB::ZLIB)
   endif()
   set_target_properties(${PROJECT_NAME}-exe PROPERTIES
-    OUTPUT_NAME ${PROJECT_NAME}
+    OUTPUT_NAME cometcna
   )
   install(TARGETS ${PROJECT_NAME}-exe
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

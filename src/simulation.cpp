@@ -170,7 +170,7 @@ Simulation::Simulation(const std::vector<std::string>& arguments)
     wtl::parse(cli, arguments);
     if (vm_local["help"]) {
         auto fmt = wtl::doc_format().paragraph_spacing(0);
-        std::cout << "Usage: " << PROJECT_NAME << " [options]\n\n";
+        std::cout << "Usage: cometcna [options]\n\n";
         std::cout << clipp::documentation(cli, fmt) << "\n";
         throw wtl::ExitSuccess();
     }
