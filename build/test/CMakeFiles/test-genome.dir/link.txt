@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/test-genome.dir/link.d "CMakeFiles/test-genome.dir/genome.cpp.o" -o test-genome  -Wl,-rpath,/home/yunong-xia/Research/Sunpath/CometCNA/build ../libcomet.so

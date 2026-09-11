@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/test-coord.dir/link.d "CMakeFiles/test-coord.dir/coord.cpp.o" -o test-coord  -Wl,-rpath,/home/yunong-xia/Research/Sunpath/CometCNA/build ../libcomet.so

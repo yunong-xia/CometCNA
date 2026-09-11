@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/test-cell.dir/link.d "CMakeFiles/test-cell.dir/cell.cpp.o" -o test-cell  -Wl,-rpath,/home/yunong-xia/Research/Sunpath/CometCNA/build ../libcomet.so
