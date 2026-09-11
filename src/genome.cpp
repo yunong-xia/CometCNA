@@ -81,6 +81,22 @@ int Genome::bounded_cn(const int cn, const int delta) {
     return std::max(0, cn + delta);
 }
 
+// 
+const ArmInterval& Genome::select_arm_biased(urbg_t& engine4) {
+    std::vector<double> weights;
+    weights.reserve(arm_intervals().size());
+    for (const auto& interval : arm_intervals()) {
+        if (std::string(interval.arm) == "8q") {
+            weights.push_back(10.0);
+        } else {
+            weights.push_back(1.0);
+        }
+    }
+
+    std::discrete_distribution<size_t> selector(weights.begin(), weights.end());
+    return arm_intervals()[selector(engine4)];
+}
+
 
 // Each cell divions has a probability to generate a new CNA in one of the daughter cells. The new CNA can be a focal gain, focal loss, chromosome gain, chromosome loss, arm gain, or arm loss. The probabilities of each event are equal (1/6). This is based on the model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
 // This function is just to choose which CNA event to occur,
@@ -89,12 +105,12 @@ std::string Genome::mutate_cna_minussi_navins(urbg_t& engine4) {
     std::uniform_int_distribution<int> event_dist(0, 5);
     const int event = event_dist(engine4);
     std::ostringstream oss;
-
+    
     // Focal gain: duplicate a short interval within one chromosome arm.
     if (event == static_cast<int>(CNAEvent::focal_gain)) {
         // randomly select one chromosome arm
         std::uniform_int_distribution<size_t> arm_selector(0, arm_intervals().size() - 1);
-
+        
         // get the coordinates of this arm
         const auto& arm_interval = arm_intervals()[arm_selector(engine4)];
         const size_t length = arm_length(arm_interval);

@@ -89,7 +89,7 @@ class Genome{
             arm_cns.emplace(arm, std::vector<int>{2});
         }
     }
-        
+    const ArmInterval& select_arm_biased(urbg_t& engine4);
     void split_segment(const std::string& arm, size_t bp);
     void apply_focal_delta(const std::string& arm, size_t start, size_t end, int delta);
     void apply_arm_delta(const std::string& arm, int delta);
