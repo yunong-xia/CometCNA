@@ -4,6 +4,10 @@
 #include "tissue.hpp"
 #include "benchmark.hpp"
 
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+
 #include <wtl/random.hpp>
 #include <wtl/iostr.hpp>
 #include <wtl/math.hpp>
@@ -90,7 +94,38 @@ bool Tissue::grow(const size_t max_size, const double max_time,
     double time_snapshot = i_snapshot * snapshot_interval;
     constexpr size_t progress_interval{1 << 12};
     unsigned int seedingSize_cur = 0;
+    const auto started = std::chrono::steady_clock::now();
+    auto last_report = started;
+    const auto initial_size = extant_cells_.size();
+    size_t events = 0;
+    const auto report_progress = [&](const char* phase) {
+        const auto now = std::chrono::steady_clock::now();
+        const double elapsed = std::chrono::duration<double>(now - started).count();
+        const auto size = extant_cells_.size();
+        std::ostringstream message;
+        message << std::fixed << std::setprecision(2)
+                << "progress phase=" << phase << " cells=" << size
+                << " target=" << max_size
+                << " percent=" << (100.0 * size / max_size)
+                << " sim_time=" << time_ << " elapsed_s=" << elapsed
+                << " eta_size_s=";
+        // A rough extrapolation of net growth, not a prediction of spatial dynamics.
+        if (size >= max_size) {
+            message << 0.0;
+        } else if (size > initial_size && elapsed > 0.0) {
+            message << elapsed * (max_size - size) / (size - initial_size);
+        } else {
+            message << "NA";
+        }
+        std::cerr << message.str() << std::endl;
+        last_report = now;
+    };
+    if (verbose) report_progress("start");
     while (true) {
+        if (verbose && (++events % 1024 == 0) &&
+            std::chrono::steady_clock::now() - last_report >= std::chrono::seconds(10)) {
+            report_progress("running");
+        }
         auto it = queue_.begin();
         time_ = it->first;
         const auto mother = std::move(it->second);
@@ -246,7 +281,6 @@ bool Tissue::grow(const size_t max_size, const double max_time,
                     queue_push(daughter);
                     const auto size = extant_cells_.size();
                     if ((size % progress_interval) == 0u) {
-                        if (verbose) std::cerr << "\r" << size;
                         if (benchmark_) benchmark_->append(size);
                     }
                 } else {
@@ -277,7 +311,7 @@ bool Tissue::grow(const size_t max_size, const double max_time,
             recording_early_growth = 0u;  // prevent restart by cell death
         }
     }
-    if (verbose) std::cerr << "\r" << extant_cells_.size() << std::endl;
+    if (verbose) report_progress("end");
     return success;
 }
 
