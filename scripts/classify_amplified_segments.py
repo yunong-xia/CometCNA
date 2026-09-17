@@ -15,39 +15,67 @@ CHROMOSOME_LENGTHS = {
     21: 46709983, 22: 50818468,
 }
 
-
+# open the file in text mode, with gzip support
 def open_text(path):
     path = str(path)
     return gzip.open(path, "rt", encoding="ascii") if path.endswith(".gz") else open(path, encoding="ascii")
 
-
+# read lineages from the lineages table
 def read_lineages(path):
+    # create a dictionary to store lineages
     lineages = defaultdict(list)
+    
+    # open the lineages table, given the "path"
     with open_text(path) as handle:
+        # each row contains a sample_id, and id. 
+        # sample_id is the id of the final sampled cell,
+        # id is the id of an ancestor cell in the lineage of the sampled cell.
         for row in csv.DictReader(handle, delimiter="\t"):
             lineages[int(row["sample_id"])].append(int(row["id"]))
     return lineages
 
 
+# read events from the CNA table
 def read_events(path):
+    
+    # events dictionary
     events = defaultdict(list)
+    
+    # open CNA table, given the "path"
     with open_text(path) as handle:
+        
+        # each row contains a CNA event, with the following columns:
+        # id: the cell id of the cell that experienced the CNA event
+        # cna_event: the type of CNA event (arm_gain, focal_loss, wgd, etc.)
+        # chr: the chromosome number of the CNA event
+        # arm: the chromosome arm of the CNA event
+        # start: the start position of the CNA event
+        # end: the end position of the CNA event
         for row in csv.DictReader(handle, delimiter="\t"):
+            # event
             event = row["cna_event"]
+            # chromosome
             chromosome = int(row["chr"]) if row["chr"] else None
+            
+            # if event is wgd, append to events with None chromosome and 0 start/end
             if event == "wgd":
                 events[int(row["id"])].append((event, None, 0, 0))
+            # else
             else:
+                # validate chromosome
                 if chromosome not in CHROMOSOME_LENGTHS:
                     raise ValueError(f"Unsupported chromosome: {row['chr']}")
+                # validate positions
                 start = int(row["start"])
                 end = int(row["end"])
                 if not 0 <= start < end <= CHROMOSOME_LENGTHS[chromosome]:
                     raise ValueError(f"Invalid CNA interval: {row}")
+                
+                # add event, chromosome, start, end to cell id
                 events[int(row["id"])].append((event, chromosome, start, end))
     return events
 
-
+# classification function
 def classify(lineages, events):
     output = []
     for sample_id, child_to_root in sorted(lineages.items()):

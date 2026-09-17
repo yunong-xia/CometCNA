@@ -7,12 +7,13 @@ import sys
 from collections import defaultdict
 
 
+# open the file in text mode
 def open_text(path):
     if path.endswith(".gz"):
         return gzip.open(path, "rt", encoding="ascii")
     return open(path, "rt", encoding="ascii")
 
-
+# parse command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
@@ -44,40 +45,62 @@ def parse_args():
     return parser.parse_args()
 
 
+# reservoir sampling of extant cells from a population file
+# reservoir sampling algorithm: https://en.wikipedia.org/wiki/Reservoir_sampling
 def reservoir_sample_extant(population_path, sample_size, rng):
     reservoir = []
-    extant_seen = 0
+    extant_cell_count = 0
 
+    # open the population file and read the header
     with open_text(population_path) as handle:
+        # header
         header = handle.readline().rstrip("\n").split("\t")
+        
+        # find the indices of the id and death columns
         try:
             id_idx = header.index("id")
             death_idx = header.index("death")
         except ValueError as exc:
             raise SystemExit(f"Missing required column in population header: {exc}")
 
+        # iterate over the lines in the population file
         for line in handle:
+            # split the line into fields
             fields = line.rstrip("\n").split("\t")
+            # check if the line has enough fields
             if len(fields) <= max(id_idx, death_idx):
                 continue
+            # check if the cell is extant (death == 0) or dead (death != 0 means dead)
+            # Only extant cells are considered for sampling.
             if fields[death_idx] != "0":
                 continue
-
-            extant_seen += 1
+            
+            # increment the count of extant cells seen.)
+            extant_cell_count += 1
+            
+            # get the cell id from the fields
             cell_id = fields[id_idx]
+            
+            # If the size of the reservoir is currently smaller than the expected sample size
+            # Then we just directly add this cell of this row into the reservoir
             if len(reservoir) < sample_size:
                 reservoir.append(cell_id)
+            
+            # if the size of the reservoir is already the same as the expected sample size
             else:
-                j = rng.randrange(extant_seen)
+                # randomly generate an integer between 0 and the number of extant cells seen so far (exclusive) 
+                j = rng.randrange(extant_cell_count)
+                # If the generated random integer is smaller than the expected sample size, we replace the cell at index j in the reservoir with the current cell id.
                 if j < sample_size:
                     reservoir[j] = cell_id
-
-    if extant_seen < sample_size:
+    # If the number of extant cells count is less than the expected sample size,
+    # Then this is an error
+    if extant_cell_count < sample_size:
         raise SystemExit(
-            f"Requested {sample_size} extant cells, but only found {extant_seen}"
+            f"Requested {sample_size} extant cells, but only found {extant_cell_count}"
         )
 
-    return reservoir, extant_seen
+    return reservoir, extant_cell_count
 
 
 def read_sample_ids(sample_path, population_path):
@@ -108,17 +131,20 @@ def read_cell_id(cell_id, population_path):
         reader = csv.DictReader(handle, delimiter="\t")
         if "id" not in (reader.fieldnames or []):
             raise SystemExit("Population must contain an id column")
+        
+        # now read rows
         for row in reader:
             if row["id"] == str(cell_id):
                 return [str(cell_id)]
     raise SystemExit(f"Cell ID not found in population: {cell_id}")
 
 
+# Lineage tracing
 def trace_lineages(sorted_cells_path, sample_ids, output_handle, mrca_handle=None):
     targets = defaultdict(set)
     for sample_id in sample_ids:
         targets[sample_id].add(sample_id)
-
+    
     rows_written = 0
     lineages = {sample_id: [] for sample_id in sample_ids}
 
@@ -201,12 +227,12 @@ def main():
     rng = random.Random(args.seed)
     if args.cell_id is not None:
         sample_ids = read_cell_id(args.cell_id, args.population)
-        extant_seen = "not_counted"
+        extant_cell_count = "not_counted"
     elif args.sample_ids:
         sample_ids = read_sample_ids(args.sample_ids, args.population)
-        extant_seen = "not_counted"
+        extant_cell_count = "not_counted"
     else:
-        sample_ids, extant_seen = reservoir_sample_extant(
+        sample_ids, extant_cell_count = reservoir_sample_extant(
             args.population, args.sample_size, rng
         )
 
@@ -219,7 +245,7 @@ def main():
         )
 
     print(
-        f"sampled_extant={len(sample_ids)} total_extant_seen={extant_seen} "
+        f"sampled_extant={len(sample_ids)} total_extant_seen={extant_cell_count} "
         f"lineage_rows_written={rows_written} unresolved_targets={len(unresolved)}",
         file=sys.stderr,
     )
