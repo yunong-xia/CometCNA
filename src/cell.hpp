@@ -45,6 +45,7 @@ struct EventRates {
 /*! @ingroup params
 */
 struct CellParams {
+    std::shared_ptr<const Genome::ArmWeights> CNA_ARM_WEIGHTS = Genome::load_arm_weights();
     //! \f$k\f$
     double GAMMA_SHAPE = 1.0;
     //! \f$p_s\f$
@@ -109,7 +110,7 @@ class Cell {
     //! Constructor for first cells
     Cell(const coord_t& v, unsigned i,
          std::shared_ptr<EventRates> er=std::make_shared<EventRates>()):
-      event_rates_(er), genome_(std::make_shared<Genome>()), coord_(v), id_(i) {} // Yunong: Initialize the diploid genome
+      event_rates_(er), genome_(std::make_shared<Genome>(PARAM_.CNA_ARM_WEIGHTS)), coord_(v), id_(i) {} // Yunong: Initialize the diploid genome
     //! Copy constructor
     Cell(const Cell& other) noexcept:
       ancestor_(other.ancestor_),

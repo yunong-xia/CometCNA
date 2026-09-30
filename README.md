@@ -52,3 +52,32 @@ Ruping Sun and Athanasios N. Nikolakopoulos\
 
 ## Author:
 Ruping Sun, Athanasios Nikolakopoulos
+
+## CNA arm occurrence weights
+
+All 44 autosomal arms have weight 1 by default. Use `--cna-arm-weights`
+to override individual arms with a tab- or whitespace-separated table:
+
+```text
+arm CNA_weight
+8q 10
+1q 3
+```
+
+Save this as `arm_weights.tsv`, then run:
+
+```sh
+cometcna -N10000 --seed 42 --cna-arm-weights arm_weights.tsv -o weighted_run
+```
+
+Omitted arms retain weight 1. Weights must be finite and nonnegative, with a
+finite positive total; zero excludes an arm from focal and arm-level events.
+Arm names are `1p`, `1q`, ..., `22p`, `22q`; duplicate arms are rejected.
+The header must be `arm CNA_weight`; blank lines are allowed.
+
+These are relative CNA occurrence weights, not cellular fitness or clone
+selection coefficients. For focal and arm gains/losses, an arm's probability
+is its weight divided by the sum over all 44 arms. Whole-chromosome gains/losses
+remain uniform across the 22 autosomes. Event-type probabilities and the overall
+CNA event rate are unchanged. The input path and all effective arm weights are
+saved in the run's `config.json`.

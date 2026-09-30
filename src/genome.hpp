@@ -11,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -29,7 +30,12 @@ struct ArmInterval {
 
 class Genome{
   public:
-    Genome() {
+    using ArmWeights = std::array<double, 44>;
+    static std::shared_ptr<const ArmWeights> load_arm_weights(const std::string& path = "");
+    static std::unordered_map<std::string, double> named_arm_weights(const ArmWeights& weights);
+
+    explicit Genome(std::shared_ptr<const ArmWeights> weights = load_arm_weights())
+      : arm_weights_(std::move(weights)) {
         initialize_arms();
     }
                 
@@ -54,6 +60,8 @@ class Genome{
 
   private:
         
+    std::shared_ptr<const ArmWeights> arm_weights_;
+
     // key structures
     // arm_breakpoints: BPs on each arm in chromosome coordinates.
     // For example, 1p starts at 0, but 1q starts at the chr1 centromere coordinate.

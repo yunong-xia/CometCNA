@@ -7,6 +7,10 @@
 
 #include <algorithm>
 #include <limits>
+#include <cmath>
+#include <fstream>
+#include <stdexcept>
+#include <unordered_set>
 #include <random>
 #include <sstream>
 
@@ -81,19 +85,65 @@ int Genome::bounded_cn(const int cn, const int delta) {
     return std::max(0, cn + delta);
 }
 
-// 
-const ArmInterval& Genome::select_arm_biased(urbg_t& engine4) {
-    std::vector<double> weights;
-    weights.reserve(arm_intervals().size());
-    for (const auto& interval : arm_intervals()) {
-        if (std::string(interval.arm) == "8q") {
-            weights.push_back(10.0);
-        } else {
-            weights.push_back(1.0);
+// Omitted arms retain weight 1. Parse once, then share immutable weights across genomes.
+std::shared_ptr<const Genome::ArmWeights> Genome::load_arm_weights(const std::string& path) {
+    auto weights = std::make_shared<ArmWeights>();
+    weights->fill(1.0);
+    if (path.empty()) return weights;
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Cannot open CNA arm weights: " + path);
+    std::string line;
+    size_t line_number = 0;
+    bool header_seen = false;
+    std::unordered_set<std::string> seen;
+    while (std::getline(input, line)) {
+        ++line_number;
+        std::istringstream row(line);
+        std::string arm, value, extra;
+        if (!(row >> arm)) continue;
+        const auto fail = [&]() {
+            throw std::runtime_error("Invalid CNA arm weights at " + path + ":" +
+                std::to_string(line_number) + ": " + line);
+        };
+        if (!(row >> value) || (row >> extra)) fail();
+        if (!header_seen) {
+            if (arm != "arm" || value != "CNA_weight") fail();
+            header_seen = true;
+            continue;
         }
+        const auto& intervals = arm_intervals();
+        const auto found = std::find_if(intervals.begin(), intervals.end(),
+            [&](const ArmInterval& interval) { return arm == interval.arm; });
+        if (found == intervals.end() || !seen.insert(arm).second) fail();
+        double weight = 0.0;
+        try {
+            size_t consumed = 0;
+            weight = std::stod(value, &consumed);
+            if (consumed != value.size()) fail();
+        } catch (const std::exception&) { fail(); }
+        if (!std::isfinite(weight) || weight < 0.0) fail();
+        (*weights)[static_cast<size_t>(found - intervals.begin())] = weight;
     }
+    if (input.bad()) throw std::runtime_error("Cannot read CNA arm weights: " + path);
+    if (!header_seen) throw std::runtime_error("Missing arm CNA_weight header: " + path);
+    double total = 0.0;
+    for (const double weight : *weights) total += weight;
+    if (!std::isfinite(total) || total <= 0.0) {
+        throw std::runtime_error("CNA arm weights must have a finite positive sum: " + path);
+    }
+    return weights;
+}
 
-    std::discrete_distribution<size_t> selector(weights.begin(), weights.end());
+std::unordered_map<std::string, double> Genome::named_arm_weights(const ArmWeights& weights) {
+    std::unordered_map<std::string, double> result;
+    for (size_t i = 0; i < weights.size(); ++i) result[arm_intervals()[i].arm] = weights[i];
+    return result;
+}
+
+// Bias arm selection for focal and arm-level events only.
+// Whole-chromosome events select uniformly among the 22 autosomes.
+const ArmInterval& Genome::select_arm_biased(urbg_t& engine4) {
+    std::discrete_distribution<size_t> selector(arm_weights_->begin(), arm_weights_->end());
     return arm_intervals()[selector(engine4)];
 }
 
@@ -108,11 +158,7 @@ std::string Genome::mutate_cna_minussi_navins(urbg_t& engine4) {
     
     // Focal gain: duplicate a short interval within one chromosome arm.
     if (event == static_cast<int>(CNAEvent::focal_gain)) {
-        // randomly select one chromosome arm
-        std::uniform_int_distribution<size_t> arm_selector(0, arm_intervals().size() - 1);
-        
-        // get the coordinates of this arm
-        const auto& arm_interval = arm_intervals()[arm_selector(engine4)];
+        const auto& arm_interval = select_arm_biased(engine4);
         const size_t length = arm_length(arm_interval);
 
         // first select the focal gain size, then place it within the arm
@@ -133,8 +179,7 @@ std::string Genome::mutate_cna_minussi_navins(urbg_t& engine4) {
         return oss.str();
     // Focal loss: delete a short interval within one chromosome arm.
     } else if (event == static_cast<int>(CNAEvent::focal_loss)) {
-        std::uniform_int_distribution<size_t> arm_selector(0, arm_intervals().size() - 1);
-        const auto& arm_interval = arm_intervals()[arm_selector(engine4)];
+        const auto& arm_interval = select_arm_biased(engine4);
         const size_t length = arm_length(arm_interval);
 
         // first select the focal loss size, then place it within the arm
@@ -175,9 +220,7 @@ std::string Genome::mutate_cna_minussi_navins(urbg_t& engine4) {
         return oss.str();
     // Arm gain: increase copy number across one selected chromosome arm.
     } else if (event == static_cast<int>(CNAEvent::arm_gain)) {
-        // randomly select one chromosome arm
-        std::uniform_int_distribution<size_t> arm_selector(0, arm_intervals().size() - 1);
-        const auto& arm_interval = arm_intervals()[arm_selector(engine4)];
+        const auto& arm_interval = select_arm_biased(engine4);
 
         // arm gain
         apply_arm_delta(arm_interval.arm, +1);
@@ -187,9 +230,7 @@ std::string Genome::mutate_cna_minussi_navins(urbg_t& engine4) {
         return oss.str();
     // Arm loss: decrease copy number across one selected chromosome arm.
     } else if (event == static_cast<int>(CNAEvent::arm_loss)) {
-        // randomly select one chromosome arm
-        std::uniform_int_distribution<size_t> arm_selector(0, arm_intervals().size() - 1);
-        const auto& arm_interval = arm_intervals()[arm_selector(engine4)];
+        const auto& arm_interval = select_arm_biased(engine4);
 
         // arm loss
         apply_arm_delta(arm_interval.arm, -1);

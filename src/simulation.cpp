@@ -76,6 +76,8 @@ inline clipp::group simulation_options(nlohmann::json* vm) {
         "Tumor size to stop taking snapshots"),
       wtl::option(vm, {"extinction"}, 100u,
         "Maximum number of trials in case of extinction"),
+      wtl::option(vm, {"cna-arm-weights"}, std::string{},
+        "Arm CNA occurrence weights: table with arm and CNA_weight columns"),
       wtl::option(vm, {"benchmark"}, false),
       wtl::option(vm, {"seed"}, seed),
       wtl::option(vm, {"stopMutH"}, false),    //ruping
@@ -178,6 +180,9 @@ Simulation::Simulation(const std::vector<std::string>& arguments)
         std::cout << PROJECT_VERSION << "\n";
         throw wtl::ExitSuccess();
     }
+    cell_params_->CNA_ARM_WEIGHTS = Genome::load_arm_weights(
+        VM.at("cna-arm-weights").get<std::string>());
+    VM["cna_arm_weights"] = Genome::named_arm_weights(*cell_params_->CNA_ARM_WEIGHTS);
     Cell::param(*cell_params_);
     config_ = VM.dump(2) + "\n";
 }
