@@ -6,33 +6,38 @@
 #define TUMOPP_BENCHMARK_HPP_
 
 #ifndef _WIN32
-  #include <wtl/resource.hpp>
+#include <wtl/resource.hpp>
 #endif // _WIN32
 
 #include <sstream>
 
-namespace tumopp {
+namespace tumopp
+{
 
-//! Utility class for benchmarking
-class Benchmark {
+  //! Utility class for benchmarking
+  class Benchmark
+  {
   public:
-    Benchmark() {
-        sst_ << "size"
+    Benchmark()
+    {
+      sst_ << "size"
 #ifndef _WIN32
-             << "\t" << wtl::rusage_header()
+           << "\t" << wtl::rusage_header()
 #endif // _WIN32
-             << "\n";
+           << "\n";
     }
     //! Append current state to #sst_
-    void append(std::size_t size) {
-        sst_ << size
+    void append(std::size_t size)
+    {
+      sst_ << size
 #ifndef _WIN32
-             << "\t" << wtl::getrusage<std::milli, std::kilo>(epoch_)
+           << "\t" << wtl::getrusage<std::milli, std::kilo>(epoch_)
 #endif // _WIN32
-             << "\n";
+           << "\n";
     }
     //! Get TSV stream buffer
-    std::streambuf* rdbuf() const {return sst_.rdbuf();}
+    std::streambuf *rdbuf() const { return sst_.rdbuf(); }
+
   private:
 #ifndef _WIN32
     //! Reference point
@@ -40,7 +45,7 @@ class Benchmark {
 #endif // _WIN32
     //! String in TSV format
     std::stringstream sst_;
-};
+  };
 
 } // namespace tumopp
 

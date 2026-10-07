@@ -17,20 +17,22 @@
 #include <string>
 #include <memory>
 
+namespace tumopp
+{
 
-namespace tumopp {
+  //! event types
+  enum class Event : uint_fast8_t
+  {
+    birth,
+    death,
+    migration,
+  };
 
-//! event types
-enum class Event: uint_fast8_t {
-   birth,
-   death,
-   migration,
-};
-
-//! @brief Parameters for the probability distributions of waiting times
-/*! @ingroup params
-*/
-struct EventRates {
+  //! @brief Parameters for the probability distributions of waiting times
+  /*! @ingroup params
+   */
+  struct EventRates
+  {
     //! \f$\beta\f$
     double birth_rate = 1.0;
     //! \f$\delta\f$
@@ -39,13 +41,15 @@ struct EventRates {
     double death_prob = 0.0;
     //! \f$\rho\f$
     double migra_rate = 0.0;
-};
+  };
 
-//! @brief Parameters for Cell class
-/*! @ingroup params
-*/
-struct CellParams {
+  //! @brief Parameters for Cell class
+  /*! @ingroup params
+   */
+  struct CellParams
+  {
     std::shared_ptr<const Genome::ArmWeights> CNA_ARM_WEIGHTS = Genome::load_arm_weights();
+    std::shared_ptr<const Genome::ArmSelectionCoefs> CNA_ARM_SELECTION_COEFS = Genome::load_arm_selection_coefs();
     //! \f$k\f$
     double GAMMA_SHAPE = 1.0;
     //! \f$p_s\f$
@@ -81,67 +85,64 @@ struct CellParams {
     double SD_MIGRA = 0.0;
     //! \f$\mu_\alpha\f$
     double RATE_PASSENGER = 0.0;
-    double RATE_PASSENGER_WGD = 0.0;  //add wgd rate to double the rate_passenger
+    double RATE_PASSENGER_WGD = 0.0; // add wgd rate to double the rate_passenger
     double RATE_WGD = 0.0;
 
     //! \f$\mu_\text{CNA}\f$
-    double RATE_CNA = 0.24; // Model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
+    double RATE_CNA = 0.24;           // Model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
     double RATE_WHICH_DAUGHTER = 0.5; // Model from Minussi, Navins. et al. 2017. "Breast Tumor Heterogeneity: Source of Fitness, Hurdle for Therapy." Trends in Cancer 3 (5): 474–93. https://doi.org/10.1016/j.trecan.2017.04.001.
     // Probability of a new CNA per cell division is 0.24. The new CNA is assigned to either daughter cell.
+  };
 
-    // double RATE_FOCAL_GAIN = 0.0; // focal CNA gain rate (Yunong)
-    // double RATE_FOCAL_LOSS = 0.0; // focal CNA loss rate (Yunong)
-    
-    // double RATE_CHROM_MISSEGREGATE = 0.0; // chromosomal CNA missegregation rate (Yunong)
-
-    // double RATE_ARM_MISSEGREGATE = 0.0; // arm-level CNA missegregation rate (Yunong)
-};
-
-
-
-/*! @brief Cancer cell
-*/
-class Cell {
+  /*! @brief Cancer cell
+   */
+  class Cell
+  {
   public:
     //! Alias
     using param_type = CellParams;
     //! Default constructor
     Cell() = default;
     //! Constructor for first cells
-    Cell(const coord_t& v, unsigned i,
-         std::shared_ptr<EventRates> er=std::make_shared<EventRates>()):
-      event_rates_(er), genome_(std::make_shared<Genome>(PARAM_.CNA_ARM_WEIGHTS)), coord_(v), id_(i) {} // Yunong: Initialize the diploid genome
+    Cell(const coord_t &v, unsigned i,
+         std::shared_ptr<EventRates> er = std::make_shared<EventRates>()) : event_rates_(er),
+                                                                            genome_(std::make_shared<Genome>(PARAM_.CNA_ARM_WEIGHTS,
+                                                                                                             PARAM_.CNA_ARM_SELECTION_COEFS)), // Yunong: Initialize genome, and CIN and selection coefficents
+                                                                            coord_(v), id_(i)
+    {
+    } // Yunong: Initialize the diploid genome
     //! Copy constructor
-    Cell(const Cell& other) noexcept:
-      ancestor_(other.ancestor_),
-      event_rates_(other.event_rates_),
-      genome_(other.genome_), // Yunong: add genome to copy constructor
-      time_of_birth_(other.time_of_birth_),
-      coord_(other.coord_),
-      id_(other.id_),
-      TsizeNow_(other.TsizeNow_),      // ruping
-      wgd_status_(other.wgd_status_),  // ruping WGD
-      proliferation_capacity_(other.proliferation_capacity_) {}
+    Cell(const Cell &other) noexcept : ancestor_(other.ancestor_),
+                                       event_rates_(other.event_rates_),
+                                       genome_(other.genome_), // Yunong: add genome to copy constructor
+                                       time_of_birth_(other.time_of_birth_),
+                                       coord_(other.coord_),
+                                       id_(other.id_),
+                                       TsizeNow_(other.TsizeNow_),     // ruping
+                                       wgd_status_(other.wgd_status_), // ruping WGD
+                                       proliferation_capacity_(other.proliferation_capacity_)
+    {
+    }
     //! Destructor
     ~Cell() noexcept = default;
     //! Copy assignment operator
-    Cell& operator=(const Cell&) = delete;
+    Cell &operator=(const Cell &) = delete;
     //! Move constructor
-    Cell(Cell&& other) = default;
+    Cell(Cell &&other) = default;
     //! Move assignment operator
-    Cell& operator=(Cell&&) = default;
+    Cell &operator=(Cell &&) = default;
 
     //! driver mutation
-    std::string mutate(urbg_t&, urbg_t&);
+    std::string mutate(urbg_t &, urbg_t &);
     //! passenger mutation
-    std::string mutate2(urbg_t&, urbg_t&);
-    
+    std::string mutate2(urbg_t &, urbg_t &);
+
     //! CNA occurence
-    bool cna_event_occur(urbg_t&);  //Yunong: check if a CNA event occurs]
+    bool cna_event_occur(urbg_t &); // Yunong: check if a CNA event occurs]
     //! which daughter cell gets the CNA event
-    bool new_daughter_cell_gets_cna(urbg_t&);  //Yunong: check which daughter cell gets the CNA event
-    //! Apply CNA mutation if occur 
-    std::string mutate_cna(urbg_t& engine4);  //Yunong: apply CNA mutation if occur
+    bool new_daughter_cell_gets_cna(urbg_t &); // Yunong: check which daughter cell gets the CNA event
+    //! Apply CNA mutation if occur
+    std::string mutate_cna(urbg_t &engine4); // Yunong: apply CNA mutation if occur
 
     //! viability check for the cell with mutated genome
     bool is_viable(double max_ploidy = 4.5,
@@ -151,81 +152,86 @@ class Cell {
 
     //! Release genome memory when the genome will not be used anymore
     //! If other cells still share that same Genome, this object is not destroyed.
-    void clear_genome_ptr() noexcept {genome_.reset();}
+    void clear_genome_ptr() noexcept { genome_.reset(); }
 
     //! driver mutation on all traits
-    std::string force_mutate(urbg_t&);
+    std::string force_mutate(urbg_t &);
     //! seeding another tumor
     std::string seeding(unsigned int);
 
     //! Calc dt and set #next_event_
-    double delta_time(urbg_t&, double now, double positional_value, bool surrounded=false);
+    double delta_time(urbg_t &, double now, double positional_value, bool surrounded = false);
     //! Change #proliferation_capacity_ stochastically
-    void differentiate(urbg_t&);
+    void differentiate(urbg_t &);
     //! Change WGD status
-    std::string wgd(urbg_t&);            //ruping WGD
+    std::string wgd(urbg_t &); // ruping WGD
     //! Set #time_of_birth_; reset other properties
-    void set_time_of_birth(double t, unsigned i, const std::shared_ptr<Cell>& ancestor, unsigned TsizeNow) noexcept {
-        time_of_birth_ = t;
-        id_ = i;
-        ancestor_ = ancestor;
-        TsizeNow_ = TsizeNow;  //ruping
-        if (is_differentiated()) {--proliferation_capacity_;}
+    void set_time_of_birth(double t, unsigned i, const std::shared_ptr<Cell> &ancestor, unsigned TsizeNow) noexcept
+    {
+      time_of_birth_ = t;
+      id_ = i;
+      ancestor_ = ancestor;
+      TsizeNow_ = TsizeNow; // ruping
+      if (is_differentiated())
+      {
+        --proliferation_capacity_;
+      }
     }
     //! Set #event_rates_->death_prob and #next_event_
-    void set_cycle_dependent_death(urbg_t&, double death_prob);
+    void set_cycle_dependent_death(urbg_t &, double death_prob);
     //! Increase #event_rates_->death_rate to birth_rate() for simulating Moran-like situation
-    void increase_death_rate() noexcept {event_rates_->death_rate = birth_rate();}
+    void increase_death_rate() noexcept { event_rates_->death_rate = birth_rate(); }
     //! Check #proliferation_capacity_
-    bool is_differentiated() const noexcept {return proliferation_capacity_ >= 0;}
+    bool is_differentiated() const noexcept { return proliferation_capacity_ >= 0; }
     //! Check WGD status
-    bool is_wgd() const noexcept {return wgd_status_ > 0;}   // ruping WGD
-  
+    bool is_wgd() const noexcept { return wgd_status_ > 0; } // ruping WGD
+
     //! @name Setter functions
     //@{
     //! Add to #coord_
-    void add_coord(const coord_t& direction) noexcept {coord_ += direction;}
+    void add_coord(const coord_t &direction) noexcept { coord_ += direction; }
     //! Set #coord_
-    void set_coord(const coord_t& v) noexcept {coord_ = v;}
+    void set_coord(const coord_t &v) noexcept { coord_ = v; }
     //! Set #coord_
-    void set_coord(coord_t&& v) noexcept {coord_ = std::move(v);}
+    void set_coord(coord_t &&v) noexcept { coord_ = std::move(v); }
     //! Set #time_of_death_
-    void set_time_of_death(double t, unsigned TsizeNow) noexcept {  //ruping
+    void set_time_of_death(double t, unsigned TsizeNow) noexcept
+    { // ruping
       time_of_death_ = t;
-      TsizeNow_ = TsizeNow;  //ruping
+      TsizeNow_ = TsizeNow; // ruping
     }
     //@}
 
     //! @name Getter functions
     //@{
     //! Get EventRates.birth_rate
-    double birth_rate() const noexcept {return event_rates_->birth_rate;}
+    double birth_rate() const noexcept { return event_rates_->birth_rate; }
     //! Get EventRates.death_rate
-    double death_rate() const noexcept {return event_rates_->death_rate;}
+    double death_rate() const noexcept { return event_rates_->death_rate; }
     //! Get EventRates.death_prob
-    double death_prob() const noexcept {return event_rates_->death_prob;}
+    double death_prob() const noexcept { return event_rates_->death_prob; }
     //! Get EventRates.migra_rate
-    double migra_rate() const noexcept {return event_rates_->migra_rate;}
+    double migra_rate() const noexcept { return event_rates_->migra_rate; }
     //! Get #next_event_
-    Event next_event() const noexcept {return next_event_;}
+    Event next_event() const noexcept { return next_event_; }
     //! Get #coord_
-    const coord_t& coord() const noexcept {return coord_;}
+    const coord_t &coord() const noexcept { return coord_; }
     //! ruping: Get #id_
-    const unsigned& id() const noexcept {return id_;}
+    const unsigned &id() const noexcept { return id_; }
     //@}
 
     //! TSV header
     static std::string header();
     //! TSV
-    std::ostream& write(std::ostream& ost) const;
+    std::ostream &write(std::ostream &ost) const;
     //! Write TSV while tracing back #ancestor_ recursively
-    std::ostream& traceback(std::ostream& ost, std::unordered_set<unsigned>* done) const;
-    friend std::ostream& operator<< (std::ostream&, const Cell&);
+    std::ostream &traceback(std::ostream &ost, std::unordered_set<unsigned> *done) const;
+    friend std::ostream &operator<<(std::ostream &, const Cell &);
 
     //! Set #PARAM_
-    static void param(const param_type& p);
+    static void param(const param_type &p);
     //! Get #PARAM_
-    static const param_type& param() {return PARAM_;}
+    static const param_type &param() { return PARAM_; }
 
   private:
     //! Parameters shared among instances
@@ -239,7 +245,7 @@ class Cell {
     //! Set of event rates (copy-on-write)
     std::shared_ptr<EventRates> event_rates_;
     //! Genome of the cell
-    std::shared_ptr<Genome> genome_;  // Yunong: add genome to cell
+    std::shared_ptr<Genome> genome_; // Yunong: add genome to cell
     //! time of birth
     double time_of_birth_ = 0.0;
     //! time of death
@@ -256,7 +262,7 @@ class Cell {
     int8_t proliferation_capacity_ = -1;
     //! next event: birth, death, or migration
     Event next_event_ = Event::birth;
-};
+  };
 
 } // namespace tumopp
 

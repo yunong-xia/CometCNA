@@ -78,6 +78,8 @@ inline clipp::group simulation_options(nlohmann::json* vm) {
         "Maximum number of trials in case of extinction"),
       wtl::option(vm, {"cna-arm-weights"}, std::string{},
         "Arm CNA occurrence weights: table with arm and CNA_weight columns"),
+      wtl::option(vm, {"cna-arm-selection-coefs"}, std::string{},
+        "Arm CNA selection coefficients: table with arm and selection_coef columns"),
       wtl::option(vm, {"benchmark"}, false),
       wtl::option(vm, {"seed"}, seed),
       wtl::option(vm, {"stopMutH"}, false),    //ruping
@@ -180,9 +182,20 @@ Simulation::Simulation(const std::vector<std::string>& arguments)
         std::cout << PROJECT_VERSION << "\n";
         throw wtl::ExitSuccess();
     }
+
+    // Load CNA arm weights
     cell_params_->CNA_ARM_WEIGHTS = Genome::load_arm_weights(
         VM.at("cna-arm-weights").get<std::string>());
+    // just to store configuration info, not used in simulation
     VM["cna_arm_weights"] = Genome::named_arm_weights(*cell_params_->CNA_ARM_WEIGHTS);
+    
+
+    // Load CNA arm selection coefficients
+    cell_params_->CNA_ARM_SELECTION_COEFS = Genome::load_arm_selection_coefs(
+        VM.at("cna-arm-selection-coefs").get<std::string>());
+    // just to store configuration info, not used in simulation
+    VM["cna_arm_selection_coefs"] = Genome::named_arm_selection_coefs(*cell_params_->CNA_ARM_SELECTION_COEFS);
+
     Cell::param(*cell_params_);
     config_ = VM.dump(2) + "\n";
 }

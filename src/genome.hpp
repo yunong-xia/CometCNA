@@ -15,96 +15,107 @@
 #include <unordered_map>
 #include <vector>
 
+namespace tumopp
+{
 
-namespace tumopp {
+    /*! arm size data
+     */
+    struct ArmInterval
+    {
+        const char *arm;
+        size_t start;
+        size_t end;
+    };
 
-/*! arm size data
-*/
-struct ArmInterval {
-    const char* arm;
-    size_t start;
-    size_t end;
-};
+    class Genome
+    {
+    public:
+        using ArmWeights = std::array<double, 44>;
+        using ArmSelectionCoefs = std::array<double, 44>;
+        static std::shared_ptr<const ArmWeights> load_arm_weights(const std::string &path = "");
+        static std::unordered_map<std::string, double> named_arm_weights(const ArmWeights &weights);
 
-
-
-class Genome{
-  public:
-    using ArmWeights = std::array<double, 44>;
-    static std::shared_ptr<const ArmWeights> load_arm_weights(const std::string& path = "");
-    static std::unordered_map<std::string, double> named_arm_weights(const ArmWeights& weights);
-
-    explicit Genome(std::shared_ptr<const ArmWeights> weights = load_arm_weights())
-      : arm_weights_(std::move(weights)) {
-        initialize_arms();
-    }
-                
-    const std::vector<size_t>& breakpoints(const std::string& arm) const {
-        return arm_breakpoints.at(arm);
-    }
-
-    const std::vector<int>& cn_states(const std::string& arm) const {
-        return arm_cns.at(arm);
-    }
-
-    void add_breakpoint(const std::string& arm, size_t bp);
+        static std::shared_ptr<const ArmSelectionCoefs> load_arm_selection_coefs(const std::string &path = "");
+        static std::unordered_map<std::string, double> named_arm_selection_coefs(const ArmSelectionCoefs &selection_coefs);
 
 
-    std::string mutate_cna_minussi_navins(urbg_t& engine4);
-    std::string mutate_wgd();
-
-    bool is_viable(double max_ploidy = 8.0,
-                   int max_segment_cn = 8,
-                   double max_normalized_segment_cn = 4.0,
-                   double max_nullisomy_fraction = 0.2) const;
-
-  private:
-        
-    std::shared_ptr<const ArmWeights> arm_weights_;
-
-    // key structures
-    // arm_breakpoints: BPs on each arm in chromosome coordinates.
-    // For example, 1p starts at 0, but 1q starts at the chr1 centromere coordinate.
-    // arm_cns: CN levels on each arm. (initially 2 for diploid)
-    std::unordered_map<std::string, std::vector<size_t>> arm_breakpoints;
-    std::unordered_map<std::string, std::vector<int>> arm_cns;
-        
-    // hardcoded arm intervals, given the hg38 cytoband data from UCSC 
-    static const std::array<ArmInterval, 44>& arm_intervals();
-        
-    // BELOW ARE PRIVATE HELPER FUNCTIONS
-
-    // hg 38 arm length 
-    static size_t arm_length(const ArmInterval& interval);
-    static size_t chromosome_length(size_t chr);
-
-    static int bounded_cn(int cn, int delta);
-        
-    // at the beginning of the simulation,
-    // initialize the arm_breakpoints and arm_cns for each arm
-    void initialize_arms() {
-
-        // reserve 44 arms for human genome (22 autosomes)
-        arm_breakpoints.reserve(arm_intervals().size());
-        arm_cns.reserve(arm_intervals().size());
-            
-
-        // initialize each arm with a single segment (CN=2) and breakpoints
-        // in chromosome coordinates
-        for (const auto& interval : arm_intervals()) {
-            const std::string arm(interval.arm);
-            arm_breakpoints.emplace(arm, std::vector<size_t>{interval.start, interval.end});
-            arm_cns.emplace(arm, std::vector<int>{2});
+        explicit Genome(
+            std::shared_ptr<const ArmWeights> weights = load_arm_weights(),
+            std::shared_ptr<const ArmSelectionCoefs> selection_coefs = load_arm_selection_coefs())
+            : arm_weights_(std::move(weights)),
+              selection_coefs_(std::move(selection_coefs))
+        {
+            initialize_arms();
         }
-    }
-    const ArmInterval& select_arm_biased(urbg_t& engine4);
-    void split_segment(const std::string& arm, size_t bp);
-    void apply_focal_delta(const std::string& arm, size_t start, size_t end, int delta);
-    void apply_arm_delta(const std::string& arm, int delta);
-    void apply_chromosome_delta(size_t chr, int delta);
-};
 
+        const std::vector<size_t> &breakpoints(const std::string &arm) const
+        {
+            return arm_breakpoints.at(arm);
+        }
 
+        const std::vector<int> &cn_states(const std::string &arm) const
+        {
+            return arm_cns.at(arm);
+        }
+
+        void add_breakpoint(const std::string &arm, size_t bp);
+
+        std::string mutate_cna_minussi_navins(urbg_t &engine4);
+        std::string mutate_wgd();
+
+        bool is_viable(double max_ploidy = 8.0,
+                       int max_segment_cn = 8,
+                       double max_normalized_segment_cn = 4.0,
+                       double max_nullisomy_fraction = 0.2) const;
+
+        double get_arm_selection_coef(const std::string &arm);
+
+    private:
+        std::shared_ptr<const ArmWeights> arm_weights_;
+        std::shared_ptr<const ArmSelectionCoefs> selection_coefs_;
+
+        // key structures
+        // arm_breakpoints: BPs on each arm in chromosome coordinates.
+        // For example, 1p starts at 0, but 1q starts at the chr1 centromere coordinate.
+        // arm_cns: CN levels on each arm. (initially 2 for diploid)
+        std::unordered_map<std::string, std::vector<size_t>> arm_breakpoints;
+        std::unordered_map<std::string, std::vector<int>> arm_cns;
+
+        // hardcoded arm intervals, given the hg38 cytoband data from UCSC
+        static const std::array<ArmInterval, 44> &arm_intervals();
+
+        // BELOW ARE PRIVATE HELPER FUNCTIONS
+
+        // hg 38 arm length
+        static size_t arm_length(const ArmInterval &interval);
+        static size_t chromosome_length(size_t chr);
+
+        static int bounded_cn(int cn, int delta);
+
+        // at the beginning of the simulation,
+        // initialize the arm_breakpoints and arm_cns for each arm
+        void initialize_arms()
+        {
+
+            // reserve 44 arms for human genome (22 autosomes)
+            arm_breakpoints.reserve(arm_intervals().size());
+            arm_cns.reserve(arm_intervals().size());
+
+            // initialize each arm with a single segment (CN=2) and breakpoints
+            // in chromosome coordinates
+            for (const auto &interval : arm_intervals())
+            {
+                const std::string arm(interval.arm);
+                arm_breakpoints.emplace(arm, std::vector<size_t>{interval.start, interval.end});
+                arm_cns.emplace(arm, std::vector<int>{2});
+            }
+        }
+        const ArmInterval &select_arm_biased(urbg_t &engine4);
+        void split_segment(const std::string &arm, size_t bp);
+        void apply_focal_delta(const std::string &arm, size_t start, size_t end, int delta);
+        void apply_arm_delta(const std::string &arm, int delta);
+        void apply_chromosome_delta(size_t chr, int delta);
+    };
 
 }
 

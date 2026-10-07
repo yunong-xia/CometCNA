@@ -76,6 +76,7 @@ int main(int argc, char* argv[]) {
         write(simulation);
     } catch (const std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
+        return 1;   // failure
     }
-    return 0;
+    return 0;   // success
 }
