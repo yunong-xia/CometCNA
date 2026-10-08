@@ -38,7 +38,6 @@ namespace tumopp
         static std::shared_ptr<const ArmSelectionCoefs> load_arm_selection_coefs(const std::string &path = "");
         static std::unordered_map<std::string, double> named_arm_selection_coefs(const ArmSelectionCoefs &selection_coefs);
 
-
         explicit Genome(
             std::shared_ptr<const ArmWeights> weights = load_arm_weights(),
             std::shared_ptr<const ArmSelectionCoefs> selection_coefs = load_arm_selection_coefs())

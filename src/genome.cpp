@@ -282,7 +282,7 @@ namespace tumopp
 
         return selection_coefs;
     }
-    
+
     // Convert the ArmSelectionCoefs array to a map of arm names to selection coefficients.
     std::unordered_map<std::string, double> Genome::named_arm_selection_coefs(const ArmSelectionCoefs &selection_coefs)
     {
@@ -293,7 +293,6 @@ namespace tumopp
         }
         return result;
     }
-
 
     double Genome::get_arm_selection_coef(const std::string &arm)
     {

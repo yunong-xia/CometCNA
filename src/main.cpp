@@ -6,29 +6,31 @@
 
 #include <wtl/filesystem.hpp>
 #ifdef ZLIB_FOUND
-  #include <wtl/zlib.hpp>
+#include <wtl/zlib.hpp>
 #endif
 
 #include <iostream>
 #include <fstream>
 
 //! Write config and simulation result to files
-void write(tumopp::Simulation& simulation) {
-  #ifdef ZLIB_FOUND
+void write(tumopp::Simulation &simulation)
+{
+#ifdef ZLIB_FOUND
     using ofstream = wtl::zlib::ofstream;
     const std::string ext = ".tsv.gz";
-  #else
+#else
     using ofstream = std::ofstream;
     const std::string ext = ".tsv";
-  #endif
+#endif
     namespace fs = wtl::filesystem;
     const auto outdir = simulation.outdir();
-    if (outdir.empty()) return;
+    if (outdir.empty())
+        return;
     fs::create_directory(outdir);
     fs::current_path(outdir);
     std::cerr << "Output: " << fs::current_path() << "\n";
     std::ofstream{"config.json"} << simulation.config();
-    const auto& tissue = simulation.tissue();
+    const auto &tissue = simulation.tissue();
     {
         ofstream ofs{"population" + ext};
         tissue.write_history(ofs);
@@ -42,41 +44,50 @@ void write(tumopp::Simulation& simulation) {
         tissue.write_dead_history(ofs);
     }
     {
-      ofstream ofs{"sampled_seeding_cells" + ext};
-      tissue.write_seedingCells(ofs);
+        ofstream ofs{"sampled_seeding_cells" + ext};
+        tissue.write_seedingCells(ofs);
     }
-    if (tissue.has_snapshots()) {
+    if (tissue.has_snapshots())
+    {
         ofstream ofs{"snapshots" + ext};
         tissue.write_snapshots(ofs);
     }
-    if (tissue.has_drivers()) {
+    if (tissue.has_drivers())
+    {
         ofstream ofs{"drivers" + ext};
         tissue.write_drivers(ofs);
     }
-    if (tissue.has_wgds()) {
+    if (tissue.has_wgds())
+    {
         ofstream ofs{"wgds" + ext};
         tissue.write_wgds(ofs);
-    } 
-    if (tissue.has_cna()) {
+    }
+    if (tissue.has_cna())
+    {
         ofstream ofs{"cna" + ext};
         tissue.write_cna(ofs);
     }
-    if (tissue.has_benchmark()) {
+    if (tissue.has_benchmark())
+    {
         ofstream ofs{"benchmark" + ext};
         tissue.write_benchmark(ofs);
     }
 }
 
 //! Instantiate and run Simulation
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     std::vector<std::string> arguments(argv + 1, argv + argc);
-    try {
+    try
+    {
         tumopp::Simulation simulation(arguments);
         simulation.run();
         write(simulation);
-    } catch (const std::runtime_error& e) {
-        std::cerr << e.what() << std::endl;
-        return 1;   // failure
     }
-    return 0;   // success
+    catch (const std::runtime_error &e)
+    {
+        std::cerr << e.what() << std::endl;
+        return 1; // failure
+    }
+    return 0; // success
 }

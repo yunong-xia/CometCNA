@@ -10,18 +10,20 @@
 #include <string>
 #include <memory>
 
-namespace tumopp {
+namespace tumopp
+{
 
-class Tissue;
-struct EventRates;
-struct CellParams;
+  class Tissue;
+  struct EventRates;
+  struct CellParams;
 
-/*! @brief Represents single run
-*/
-class Simulation {
+  /*! @brief Represents single run
+   */
+  class Simulation
+  {
   public:
     //! Parse command arguments
-    Simulation(const std::vector<std::string>& args);
+    Simulation(const std::vector<std::string> &args);
 
     //! Non-default destructor for forward declaration
     ~Simulation();
@@ -32,9 +34,9 @@ class Simulation {
     //! @name Getter for `main()`
     //@{
     //! Get #tissue_
-    Tissue& tissue() const noexcept {return *tissue_;}
+    Tissue &tissue() const noexcept { return *tissue_; }
     //! Get #config_
-    const std::string& config() const noexcept {return config_;}
+    const std::string &config() const noexcept { return config_; }
     //! Get VM["outdir"]
     std::string outdir() const;
     //@}
@@ -69,15 +71,15 @@ class Simulation {
     std::unique_ptr<CellParams> cell_params_;
     //! Parameters
     std::string config_;
-};
+  };
 
-//! @name Workaround for R/Rcpp
-//@{
-//! Proxy of std::cout.rdbuf
-std::streambuf* std_cout_rdbuf(std::streambuf*);
-//! Proxy of std::cerr.rdbuf
-std::streambuf* std_cerr_rdbuf(std::streambuf*);
-//@}
+  //! @name Workaround for R/Rcpp
+  //@{
+  //! Proxy of std::cout.rdbuf
+  std::streambuf *std_cout_rdbuf(std::streambuf *);
+  //! Proxy of std::cerr.rdbuf
+  std::streambuf *std_cerr_rdbuf(std::streambuf *);
+  //@}
 
 } // namespace tumopp
 

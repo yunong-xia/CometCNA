@@ -2,10 +2,11 @@
 #ifndef TUMOPP_VERSION_HPP_
 #define TUMOPP_VERSION_HPP_
 
-namespace tumopp {
+namespace tumopp
+{
 
-extern const char* const PROJECT_NAME;
-extern const char* const PROJECT_VERSION;
+    extern const char *const PROJECT_NAME;
+    extern const char *const PROJECT_VERSION;
 
 }
 

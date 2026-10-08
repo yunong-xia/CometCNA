@@ -6,11 +6,12 @@
 #define TUMOPP_RANDOM_HPP_
 
 #ifdef SFMT_FOUND
-  #include <sfmt.hpp>
+#include <sfmt.hpp>
 #endif
 #include <random>
 
-namespace tumopp {
+namespace tumopp
+{
 
 //! Type alias of random number generator
 #ifdef SFMT_FOUND

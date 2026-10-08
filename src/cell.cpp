@@ -285,7 +285,6 @@ namespace tumopp
         auto oss = wtl::make_oss();
         oss << id_ << "\t" << genome_->mutate_cna_minussi_navins(engine4);
 
-
         // only apply fitness changes if whole 14q arms are affected.
         const std::string record = oss.str();
         const double s_14q = genome_->get_arm_selection_coef("14q");
