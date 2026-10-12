@@ -194,18 +194,30 @@ def copy_number_table(cell_id, cn_states, bps):
 def main():
     # runs/tumor_14q_selection_coef_0.1_N1e5_seed100001
 
+    argument_parser = argparse.ArgumentParser(description="Single cell lineage tracing.")
+    argument_parser.add_argument("--population_path", type=str, required=True, help="Path to the population.tsv.gz file.")
+    argument_parser.add_argument("--dead_cells_path", type=str, required=True, help="Path to the dead_cells.tsv.gz file.")
+    argument_parser.add_argument("--cna_events_path", type=str, required=True, help="Path to the cna.tsv.gz file.")
+    argument_parser.add_argument("--sample_size", type=int, default=10, help="Number of extant cells to sample.")
+    argument_parser.add_argument("--output_path", type=str, required=True, help="Path to save the sampled cells copy number table.")
+    args = argument_parser.parse_args()
+    if args.sample_size < 1:
+        argument_parser.error("--sample_size must be at least 1")
 
-
-    population_path = Path("/home/yunong-xia/Research/Sunpath/CometCNA/runs/tumor_14q_selection_coef_0.1_N1e5_seed100001/population.tsv.gz")
-    dead_cells_path = Path("/home/yunong-xia/Research/Sunpath/CometCNA/runs/tumor_14q_selection_coef_0.1_N1e5_seed100001/dead_cells.tsv.gz")
+    population_path = Path(args.population_path)
+    dead_cells_path = Path(args.dead_cells_path)
 
      # sample extant cells
-    sampled_cells = sample_extant_cells(population_path, 10, np.random.default_rng(42))
+    sampled_cells = sample_extant_cells(population_path, args.sample_size, np.random.default_rng(42))
+    if len(sampled_cells) != args.sample_size:
+        argument_parser.error(
+            f"Requested {args.sample_size} cells, but found only {len(sampled_cells)} extant cells"
+        )
     print(f"Sampled cells: {sampled_cells}")
 
     cell_parent_dict = load_population_and_dead_cells(population_path, dead_cells_path)
 
-    cna_events_path = Path("/home/yunong-xia/Research/Sunpath/CometCNA/runs/tumor_14q_selection_coef_0.1_N1e5_seed100001/cna.tsv.gz")
+    cna_events_path = Path(args.cna_events_path)
     cna_events_dict = load_cna_events(cna_events_path)
 
 
@@ -216,7 +228,7 @@ def main():
         print(f"Processing cell {cell_id}...")
         cn_states, bps = reconstruct_copy_numbers(trace_cna_events(trace_lineage(cell_parent_dict, cell_id), cna_events_dict))
         table = pd.concat([table, copy_number_table(cell_id, cn_states, bps)], ignore_index=True)
-    table.to_csv("/home/yunong-xia/Research/Sunpath/CometCNA/runs/tumor_14q_selection_coef_0.1_N1e5_seed100001/sampled_cells_copy_number_table.tsv", sep="\t", index=False)
+    table.to_csv(args.output_path, sep="\t", index=False)
     return
 
 
