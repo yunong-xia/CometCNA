@@ -200,6 +200,7 @@ def main():
     argument_parser.add_argument("--cna_events_path", type=str, required=True, help="Path to the cna.tsv.gz file.")
     argument_parser.add_argument("--sample_size", type=int, default=10, help="Number of extant cells to sample.")
     argument_parser.add_argument("--output_path", type=str, required=True, help="Path to save the sampled cells copy number table.")
+    argument_parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling.")
     args = argument_parser.parse_args()
     if args.sample_size < 1:
         argument_parser.error("--sample_size must be at least 1")
@@ -208,7 +209,7 @@ def main():
     dead_cells_path = Path(args.dead_cells_path)
 
      # sample extant cells
-    sampled_cells = sample_extant_cells(population_path, args.sample_size, np.random.default_rng(42))
+    sampled_cells = sample_extant_cells(population_path, args.sample_size, np.random.default_rng(args.seed))
     if len(sampled_cells) != args.sample_size:
         argument_parser.error(
             f"Requested {args.sample_size} cells, but found only {len(sampled_cells)} extant cells"
