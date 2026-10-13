@@ -9,6 +9,7 @@ from pathlib import Path
 from bisect import bisect_left
 import numpy as np
 
+
 DEFAULT_CYTOBAND_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "cytoband_hg38.txt"
 )
@@ -113,32 +114,49 @@ def initialize_diploid_genome(cytoband_path):
 
     return cn_states, bps
 
-def split_at(arm, position, cn_states, bps):
+def split_at(arm, position, cn_states, bps, trajectory_types):
     boundaries = bps[arm]
     index = bisect_left(boundaries, position)
 
+    # if the position is a boundary already
     if index < len(boundaries) and boundaries[index] == position:
         return
 
+    # if the position is not a boundary but is a valid point
     if 0 < index < len(boundaries):
+        # put the new boundary into the the correct index of the list
         boundaries.insert(index, position)
+        # The cn state between the new boundary and the
         cn_states[arm].insert(index, cn_states[arm][index - 1])
+        trajectory_types[arm].insert(index, trajectory_types[arm][index-1])
 
 
-def apply_delta(arm, start, end, delta, cn_states, bps):
-    split_at(arm, start, cn_states, bps)
-    split_at(arm, end, cn_states, bps)
+def apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types):
+    split_at(arm, start, cn_states, bps, trajectory_types)
+    split_at(arm, end, cn_states, bps, trajectory_types)
 
     boundaries = bps[arm]
     states = cn_states[arm]
+    arm_trajectories = trajectory_types[arm]
 
     for i, cn in enumerate(states):
         if boundaries[i] >= start and boundaries[i + 1] <= end and cn > 0:
             states[i] = max(0, cn + delta)
+            if delta == -1:
+                arm_trajectories[i] = "BDT"
 
 
-def reconstruct_copy_numbers(lineage_cna_events, cytoband_path=DEFAULT_CYTOBAND_PATH):
-    cn_states, bps = initialize_diploid_genome(cytoband_path)
+def reconstruct_copy_numbers(lineage_cna_events, starting_cn_states=None, starting_bps=None, cytoband_path=DEFAULT_CYTOBAND_PATH):
+    if starting_cn_states is None and starting_bps is None:
+        cn_states, bps = initialize_diploid_genome(cytoband_path)
+    else:
+        cn_states, bps = starting_cn_states, starting_bps
+
+    # the CN trajectory type of this lineage
+    trajectory_types = {
+        arm: ["UDT"] * len(states)
+        for arm, states in cn_states.items()
+    }
 
     for event in lineage_cna_events:
         event_type = event['cna_event']
@@ -165,21 +183,24 @@ def reconstruct_copy_numbers(lineage_cna_events, cytoband_path=DEFAULT_CYTOBAND_
         end = int(event['end'])
 
         for arm in affected_arms:
-            apply_delta(arm, start, end, delta, cn_states, bps)
+            apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types)
 
-    return cn_states, bps
+    return cn_states, bps, trajectory_types
 
-def copy_number_table(cell_id, cn_states, bps):
+def copy_number_table(cell_id, cn_states, bps, trajectory_types):
     rows = []
 
     for arm in sorted(cn_states, key=lambda name: (int(name[:-1]), name[-1])):
         boundaries = bps[arm]
         states = cn_states[arm]
+        arm_trajectory_types = trajectory_types[arm]
 
-        if len(boundaries) != len(states) + 1:
+        if len(boundaries) != len(states) + 1 or len(arm_trajectory_types) != len(states):
             raise ValueError(f'Invalid breakpoints/CN states for {arm}')
 
-        for start, end, cn in zip(boundaries[:-1], boundaries[1:], states):
+        for start, end, cn, trajectory_type in zip(
+            boundaries[:-1], boundaries[1:], states, arm_trajectory_types
+        ):
             rows.append({
                 'cell_id': cell_id,
                 'chr': int(arm[:-1]),
@@ -187,12 +208,15 @@ def copy_number_table(cell_id, cn_states, bps):
                 'start': start,
                 'end': end,
                 'cn': cn,
+                'trajectory_type': trajectory_type,
             })
 
-    return pd.DataFrame(rows, columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn'])
+    return pd.DataFrame(
+        rows,
+        columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn', 'trajectory_type'],
+    )
 
 def main():
-    # runs/tumor_14q_selection_coef_0.1_N1e5_seed100001
 
     argument_parser = argparse.ArgumentParser(description="Single cell lineage tracing.")
     argument_parser.add_argument("--population_path", type=str, required=True, help="Path to the population.tsv.gz file.")
@@ -200,10 +224,17 @@ def main():
     argument_parser.add_argument("--cna_events_path", type=str, required=True, help="Path to the cna.tsv.gz file.")
     argument_parser.add_argument("--sample_size", type=int, default=10, help="Number of extant cells to sample.")
     argument_parser.add_argument("--output_path", type=str, required=True, help="Path to save the sampled cells copy number table.")
-    argument_parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling.")
+    argument_parser.add_argument("--seed", type=int, default=None, help="Random seed for sampling.")
     args = argument_parser.parse_args()
     if args.sample_size < 1:
         argument_parser.error("--sample_size must be at least 1")
+
+
+    if args.seed is not None:
+        np.random.seed(args.seed)
+    else:
+        np.random.seed()
+
 
     population_path = Path(args.population_path)
     dead_cells_path = Path(args.dead_cells_path)
@@ -227,8 +258,8 @@ def main():
     table = pd.DataFrame(columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn'])
     for cell_id in sampled_cells:
         print(f"Processing cell {cell_id}...")
-        cn_states, bps = reconstruct_copy_numbers(trace_cna_events(trace_lineage(cell_parent_dict, cell_id), cna_events_dict))
-        table = pd.concat([table, copy_number_table(cell_id, cn_states, bps)], ignore_index=True)
+        cn_states, bps, trajectory_types = reconstruct_copy_numbers(trace_cna_events(trace_lineage(cell_parent_dict, cell_id), cna_events_dict))
+        table = pd.concat([table, copy_number_table(cell_id, cn_states, bps, trajectory_types)], ignore_index=True)
     table.to_csv(args.output_path, sep="\t", index=False)
     return
 
