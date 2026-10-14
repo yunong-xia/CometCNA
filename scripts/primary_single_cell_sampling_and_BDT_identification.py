@@ -74,9 +74,10 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
     seeding_cn_states_on_union_bps = {}
     truncal_cn_states_on_union_bps = {}
     
-    primary_branch_types = {}
-    seeding_branch_types = {}
-    truncal_types = {}
+    # these are segmented by the union bps
+    primary_branch_types_on_union_bps = {}
+    seeding_branch_types_on_union_bps = {}
+    truncal_types_on_union_bps = {}
 
     for arm in primary_bps:
 
@@ -89,7 +90,6 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
         arm_seeding_branch_types = []
         arm_truncal_types = []
         
-        arm_seeding_cn_states_on_union_bps = []
         arm_truncal_cn_states_on_union_bps = []
         
         arm_primary_cn_states_on_union_bps = []
@@ -123,9 +123,9 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
         combined_bps[arm] = boundaries
         combined_types[arm] = labels
         
-        truncal_types[arm] = arm_truncal_types
-        primary_subclonal_trajectory_types[arm] = arm_primary_branch_types
-        seeding_subclonal_trajectory_types[arm] = arm_seeding_branch_types
+        truncal_types_on_union_bps[arm] = arm_truncal_types
+        primary_branch_types_on_union_bps[arm] = arm_primary_branch_types
+        seeding_branch_types_on_union_bps[arm] = arm_seeding_branch_types
         
         primary_cn_states_on_union_bps[arm] = arm_primary_cn_states_on_union_bps
         seeding_cn_states_on_union_bps[arm] = arm_seeding_cn_states_on_union_bps
@@ -135,12 +135,12 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
     primary_vs_seeding_results = {
         "primary_cell": primary_cell,
         "seeding_cell": seeding_cell,
-        "primary_cn_states_on_union_bps": primary_cn_states_on_union_bps,
-        "seeding_cn_states_on_union_bps": seeding_cn_states_on_union_bps,
-        "truncal_cn_states_on_union_bps": truncal_cn_states_on_union_bps,
-        "primary_subclonal_trajectory_types": primary_subclonal_trajectory_types,
-        "seeding_subclonal_trajectory_types": seeding_subclonal_trajectory_types,
-        "truncal_types": truncal_types,
+        "primary_cn_state": primary_cn_states_on_union_bps,
+        "seeding_cn_state": seeding_cn_states_on_union_bps,
+        "truncal_cn_state": truncal_cn_states_on_union_bps,
+        "primary_subtrajectory_type": primary_branch_types_on_union_bps,
+        "seeding_subtrajectory_type": seeding_branch_types_on_union_bps,
+        "truncal_subtrajectory_type": truncal_types_on_union_bps,
         "combined_bps": combined_bps,
         "combined_types": combined_types
     }
@@ -155,13 +155,13 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
     combined_bps = primary_vs_seeding_results['combined_bps']
     combined_types = primary_vs_seeding_results['combined_types']
     
-    primary_cn_states_on_union_bps = primary_vs_seeding_results['primary_cn_states_on_union_bps']
-    seeding_cn_states_on_union_bps = primary_vs_seeding_results['seeding_cn_states_on_union_bps']
-    truncal_cn_states_on_union_bps = primary_vs_seeding_results['truncal_cn_states_on_union_bps']
+    primary_cn_states_on_union_bps = primary_vs_seeding_results['primary_cn_state']
+    seeding_cn_states_on_union_bps = primary_vs_seeding_results['seeding_cn_state']
+    truncal_cn_states_on_union_bps = primary_vs_seeding_results['truncal_cn_state']
     
-    primary_subclonal_trajectory_types = primary_vs_seeding_results['primary_subclonal_trajectory_types']
-    seeding_subclonal_trajectory_types = primary_vs_seeding_results['seeding_subclonal_trajectory_types']
-    truncal_types = primary_vs_seeding_results['truncal_types']
+    primary_branch_types_on_union_bps = primary_vs_seeding_results['primary_subtrajectory_type']
+    seeding_branch_types_on_union_bps = primary_vs_seeding_results['seeding_subtrajectory_type']
+    truncal_types_on_union_bps = primary_vs_seeding_results['truncal_subtrajectory_type']
     
     
     rows = []
@@ -174,9 +174,9 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
         arm_seeding_cn_states_on_union_bps = seeding_cn_states_on_union_bps[arm]
         arm_truncal_cn_states_on_union_bps = truncal_cn_states_on_union_bps[arm]
         
-        arm_primary_subclonal_trajectory_types = primary_subclonal_trajectory_types[arm]
-        arm_seeding_subclonal_trajectory_types = seeding_subclonal_trajectory_types[arm]
-        arm_truncal_types = truncal_types[arm]
+        arm_primary_branch_types_on_union_bps = primary_branch_types_on_union_bps[arm]
+        arm_seeding_branch_types_on_union_bps = seeding_branch_types_on_union_bps[arm]
+        arm_truncal_types_on_union_bps = truncal_types_on_union_bps[arm]
 
         if len(boundaries) != len(types) + 1:
             raise ValueError(f'Invalid breakpoints/CN states for {arm}')
@@ -187,9 +187,9 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
                                                             arm_primary_cn_states_on_union_bps, 
                                                             arm_seeding_cn_states_on_union_bps,
                                                             arm_truncal_cn_states_on_union_bps,
-                                                            arm_primary_subclonal_trajectory_types,
-                                                            arm_seeding_subclonal_trajectory_types,
-                                                            arm_truncal_types):
+                                                            arm_primary_branch_types_on_union_bps,
+                                                            arm_seeding_branch_types_on_union_bps,
+                                                            arm_truncal_types_on_union_bps):
             rows.append({
                 'primary_cell': primary_cell,
                 'seeding_cell': seeding_cell,
@@ -289,7 +289,6 @@ def main():
         'truncal_subtrajectory_type',
         'primary_vs_seeding_subclonal_trajectory_type'
     ]
-    print(tables)
     table = pd.concat(tables, ignore_index=True) if tables else pd.DataFrame(columns=columns)
     table.to_csv(args.output_path, sep="\t", index=False)
 
