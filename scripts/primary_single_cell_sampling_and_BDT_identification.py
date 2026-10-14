@@ -49,10 +49,14 @@ def trace_subtrajectory_cna_events(cell_parent_dict, cna_events_dict, primary_ce
 
     return truncal_cna_events, primary_subclonal_cna_events, seeding_subclonal_cna_events
 
-def get_subclonal_trajectory_types(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell):
-    truncal_cna_events, primary_subclonal_cna_events, seeding_subclonal_cna_events = trace_subtrajectory_cna_events(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell)
-    truncal_cn_states, truncal_bps, _ = sclt.reconstruct_copy_numbers(truncal_cna_events)
 
+# trace the lineage, and get the cn states, bps, and trajectories for primary vs seeding
+def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell):
+    truncal_cna_events, primary_subclonal_cna_events, seeding_subclonal_cna_events = trace_subtrajectory_cna_events(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell)
+    truncal_cn_states, truncal_bps, truncal_trajectory_types = sclt.reconstruct_copy_numbers(truncal_cna_events)
+    
+    
+    
     primary_cn_states, primary_bps, primary_subclonal_trajectory_types = sclt.reconstruct_copy_numbers(primary_subclonal_cna_events,
                                                                                                        starting_cn_states=deepcopy(truncal_cn_states),
                                                                                                        starting_bps=deepcopy(truncal_bps))
@@ -64,17 +68,33 @@ def get_subclonal_trajectory_types(cell_parent_dict, cna_events_dict, primary_ce
                                                                                                     starting_bps=deepcopy(truncal_bps))
 
 
-
     combined_bps = {}
     combined_types = {}
+    primary_cn_states_on_union_bps = {}
+    seeding_cn_states_on_union_bps = {}
+    truncal_cn_states_on_union_bps = {}
+    
+    primary_branch_types = {}
+    seeding_branch_types = {}
+    truncal_types = {}
 
     for arm in primary_bps:
 
         # take unions of breakpoints
-        boundaries = sorted(set(primary_bps[arm]) | set(seeding_bps[arm]))
+        boundaries = sorted(set(primary_bps[arm]) | set(seeding_bps[arm]) | set(truncal_bps[arm]))
 
-        # initialize a list of labels
+        # initialization
         labels = []
+        arm_primary_branch_types = []
+        arm_seeding_branch_types = []
+        arm_truncal_types = []
+        
+        arm_seeding_cn_states_on_union_bps = []
+        arm_truncal_cn_states_on_union_bps = []
+        
+        arm_primary_cn_states_on_union_bps = []
+        arm_seeding_cn_states_on_union_bps = []
+        arm_truncal_cn_states_on_union_bps = []
 
         # for each pair of consecutive union breakpoints
         for start, end in zip(boundaries[:-1], boundaries[1:]):
@@ -83,29 +103,93 @@ def get_subclonal_trajectory_types(cell_parent_dict, cna_events_dict, primary_ce
             p_i = bisect_right(primary_bps[arm], start) - 1
             # index of seeding cell bp <= the union bp (indexing bps)
             s_i = bisect_right(seeding_bps[arm], start) - 1
+            # index of the MRCA bp <= the union bp (indexing bps)
+            t_i = bisect_right(truncal_bps[arm], start) - 1
 
             is_bdt = (
                 primary_subclonal_trajectory_types[arm][p_i] == "BDT"
                 or seeding_subclonal_trajectory_types[arm][s_i] == "BDT"
             )
             labels.append("BDT" if is_bdt else "UDT")
-
+            
+            arm_primary_branch_types.append(primary_subclonal_trajectory_types[arm][p_i])
+            arm_seeding_branch_types.append(seeding_subclonal_trajectory_types[arm][s_i])
+            arm_truncal_types.append(truncal_trajectory_types[arm][t_i])
+            
+            arm_primary_cn_states_on_union_bps.append(primary_cn_states[arm][p_i])
+            arm_seeding_cn_states_on_union_bps.append(seeding_cn_states[arm][s_i])
+            arm_truncal_cn_states_on_union_bps.append(truncal_cn_states[arm][t_i])
+            
         combined_bps[arm] = boundaries
         combined_types[arm] = labels
+        
+        truncal_types[arm] = arm_truncal_types
+        primary_subclonal_trajectory_types[arm] = arm_primary_branch_types
+        seeding_subclonal_trajectory_types[arm] = arm_seeding_branch_types
+        
+        primary_cn_states_on_union_bps[arm] = arm_primary_cn_states_on_union_bps
+        seeding_cn_states_on_union_bps[arm] = arm_seeding_cn_states_on_union_bps
+        truncal_cn_states_on_union_bps[arm] = arm_truncal_cn_states_on_union_bps
+        
 
-    return combined_types, combined_bps
+    primary_vs_seeding_results = {
+        "primary_cell": primary_cell,
+        "seeding_cell": seeding_cell,
+        "primary_cn_states_on_union_bps": primary_cn_states_on_union_bps,
+        "seeding_cn_states_on_union_bps": seeding_cn_states_on_union_bps,
+        "truncal_cn_states_on_union_bps": truncal_cn_states_on_union_bps,
+        "primary_subclonal_trajectory_types": primary_subclonal_trajectory_types,
+        "seeding_subclonal_trajectory_types": seeding_subclonal_trajectory_types,
+        "truncal_types": truncal_types,
+        "combined_bps": combined_bps,
+        "combined_types": combined_types
+    }
+    
+    return primary_vs_seeding_results
 
-def between_pair_BDT_table(primary_cell, seeding_cell, combined_types, combined_bps):
+def primary_vs_seeding_table(primary_vs_seeding_results):
+    
+    primary_cell = primary_vs_seeding_results['primary_cell']
+    seeding_cell = primary_vs_seeding_results['seeding_cell']
+    
+    combined_bps = primary_vs_seeding_results['combined_bps']
+    combined_types = primary_vs_seeding_results['combined_types']
+    
+    primary_cn_states_on_union_bps = primary_vs_seeding_results['primary_cn_states_on_union_bps']
+    seeding_cn_states_on_union_bps = primary_vs_seeding_results['seeding_cn_states_on_union_bps']
+    truncal_cn_states_on_union_bps = primary_vs_seeding_results['truncal_cn_states_on_union_bps']
+    
+    primary_subclonal_trajectory_types = primary_vs_seeding_results['primary_subclonal_trajectory_types']
+    seeding_subclonal_trajectory_types = primary_vs_seeding_results['seeding_subclonal_trajectory_types']
+    truncal_types = primary_vs_seeding_results['truncal_types']
+    
+    
     rows = []
-
+    
     for arm in sorted(combined_types, key=lambda name: (int(name[:-1]), name[-1])):
         boundaries = combined_bps[arm]
         types = combined_types[arm]
+        
+        arm_primary_cn_states_on_union_bps = primary_cn_states_on_union_bps[arm]
+        arm_seeding_cn_states_on_union_bps = seeding_cn_states_on_union_bps[arm]
+        arm_truncal_cn_states_on_union_bps = truncal_cn_states_on_union_bps[arm]
+        
+        arm_primary_subclonal_trajectory_types = primary_subclonal_trajectory_types[arm]
+        arm_seeding_subclonal_trajectory_types = seeding_subclonal_trajectory_types[arm]
+        arm_truncal_types = truncal_types[arm]
 
         if len(boundaries) != len(types) + 1:
             raise ValueError(f'Invalid breakpoints/CN states for {arm}')
 
-        for start, end, type in zip(boundaries[:-1], boundaries[1:], types):
+        for start, end, type, primary_cn, seeding_cn, truncal_cn, primary_type, seeding_type, truncal_type in zip(boundaries[:-1], 
+                                                            boundaries[1:], 
+                                                            types, 
+                                                            arm_primary_cn_states_on_union_bps, 
+                                                            arm_seeding_cn_states_on_union_bps,
+                                                            arm_truncal_cn_states_on_union_bps,
+                                                            arm_primary_subclonal_trajectory_types,
+                                                            arm_seeding_subclonal_trajectory_types,
+                                                            arm_truncal_types):
             rows.append({
                 'primary_cell': primary_cell,
                 'seeding_cell': seeding_cell,
@@ -113,10 +197,28 @@ def between_pair_BDT_table(primary_cell, seeding_cell, combined_types, combined_
                 'arm': arm,
                 'start': start,
                 'end': end,
-                'trajectory_type': type
+                'primary_cell_cn': primary_cn,
+                'seeding_cell_cn': seeding_cn,
+                'truncal_cell_cn': truncal_cn,
+                'primary_subtrajectory_type': primary_type,
+                'seeding_subtrajectory_type': seeding_type,
+                'truncal_subtrajectory_type': truncal_type,
+                'primary_vs_seeding_subclonal_trajectory_type': type
             })
 
-    return pd.DataFrame(rows, columns=['primary_cell', 'seeding_cell', 'chr', 'arm', 'start', 'end', 'trajectory_type'])
+    return pd.DataFrame(rows, columns=['primary_cell', 
+                                       'seeding_cell', 
+                                       'chr', 
+                                       'arm', 
+                                       'start', 
+                                       'end', 
+                                       'primary_cell_cn', 
+                                       'seeding_cell_cn', 
+                                       'truncal_cell_cn',
+                                       'primary_subtrajectory_type',
+                                       'seeding_subtrajectory_type',
+                                       'truncal_subtrajectory_type',
+                                       'primary_vs_seeding_subclonal_trajectory_type'])
 
 def main():
     argument_parser = argparse.ArgumentParser(description="Single cell lineage tracing.")
@@ -166,20 +268,30 @@ def main():
     cna_events_dict = sclt.load_cna_events(cna_events_path)
 
     # trace subclonal CNA events
-
-    table = pd.DataFrame(columns=['primary_cell', 'seeding_cell', 'chr', 'arm', 'start', 'end', 'trajectory_type'])
+    tables = []
     for pair in primary_seeding_pairs:
         primary_cell, seeding_cell = pair
-        combined_types, combined_bps = get_subclonal_trajectory_types(cell_parent_dict, cna_events_dict,
+        primary_vs_seeding_results = get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_events_dict,
                                                primary_cell, seeding_cell)
-        table = pd.concat([table, between_pair_BDT_table(primary_cell, seeding_cell, combined_types, combined_bps)],
-                          ignore_index=True)
+        tables.append(primary_vs_seeding_table(primary_vs_seeding_results))
+    columns = [
+        'primary_cell', 
+        'seeding_cell', 
+        'chr', 
+        'arm', 
+        'start', 
+        'end', 
+        'primary_cell_cn', 
+        'seeding_cell_cn', 
+        'truncal_cell_cn',
+        'primary_subtrajectory_type',
+        'seeding_subtrajectory_type',
+        'truncal_subtrajectory_type',
+        'primary_vs_seeding_subclonal_trajectory_type'
+    ]
+    print(tables)
+    table = pd.concat(tables, ignore_index=True) if tables else pd.DataFrame(columns=columns)
     table.to_csv(args.output_path, sep="\t", index=False)
-
-
-
-
-
 
     return
 
