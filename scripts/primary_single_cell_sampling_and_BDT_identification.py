@@ -53,17 +53,17 @@ def trace_subtrajectory_cna_events(cell_parent_dict, cna_events_dict, primary_ce
 # trace the lineage, and get the cn states, bps, and trajectories for primary vs seeding
 def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell):
     truncal_cna_events, primary_subclonal_cna_events, seeding_subclonal_cna_events = trace_subtrajectory_cna_events(cell_parent_dict, cna_events_dict, primary_cell, seeding_cell)
-    truncal_cn_states, truncal_bps, truncal_trajectory_types = sclt.reconstruct_copy_numbers(truncal_cna_events)
+    truncal_cn_states, truncal_bps, truncal_trajectory_types, truncal_trajectory_cn_at_least_2 = sclt.reconstruct_copy_numbers(truncal_cna_events)
     
     
     
-    primary_cn_states, primary_bps, primary_subclonal_trajectory_types = sclt.reconstruct_copy_numbers(primary_subclonal_cna_events,
+    primary_cn_states, primary_bps, primary_subclonal_trajectory_types, primary_trajectory_cn_at_least_2 = sclt.reconstruct_copy_numbers(primary_subclonal_cna_events,
                                                                                                        starting_cn_states=deepcopy(truncal_cn_states),
                                                                                                        starting_bps=deepcopy(truncal_bps))
 
 
 
-    seeding_cn_states, seeding_bps, seeding_subclonal_trajectory_types = sclt.reconstruct_copy_numbers(seeding_subclonal_cna_events,
+    seeding_cn_states, seeding_bps, seeding_subclonal_trajectory_types, seeding_trajectory_cn_at_least_2 = sclt.reconstruct_copy_numbers(seeding_subclonal_cna_events,
                                                                                                     starting_cn_states=deepcopy(truncal_cn_states),
                                                                                                     starting_bps=deepcopy(truncal_bps))
 
@@ -78,6 +78,11 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
     primary_branch_types_on_union_bps = {}
     seeding_branch_types_on_union_bps = {}
     truncal_types_on_union_bps = {}
+    
+    # if any branch reached cn < 2
+    primary_trajectory_cn_at_least_2_union_bps = {}
+    seeding_trajectory_cn_at_least_2_union_bps = {}
+    truncal_trajectory_cn_at_least_2_union_bps = {}
 
     for arm in primary_bps:
 
@@ -95,6 +100,10 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
         arm_primary_cn_states_on_union_bps = []
         arm_seeding_cn_states_on_union_bps = []
         arm_truncal_cn_states_on_union_bps = []
+        
+        arm_primary_trajectory_cn_at_least_2_union_bps = []
+        arm_seeding_trajectory_cn_at_least_2_union_bps = []
+        arm_truncal_trajectory_cn_at_least_2_union_bps = []
 
         # for each pair of consecutive union breakpoints
         for start, end in zip(boundaries[:-1], boundaries[1:]):
@@ -116,9 +125,15 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
             arm_seeding_branch_types.append(seeding_subclonal_trajectory_types[arm][s_i])
             arm_truncal_types.append(truncal_trajectory_types[arm][t_i])
             
+            arm_primary_trajectory_cn_at_least_2_union_bps.append(primary_trajectory_cn_at_least_2[arm][p_i])
+            arm_seeding_trajectory_cn_at_least_2_union_bps.append(seeding_trajectory_cn_at_least_2[arm][s_i])
+            arm_truncal_trajectory_cn_at_least_2_union_bps.append(truncal_trajectory_cn_at_least_2[arm][t_i])
+            
+            
             arm_primary_cn_states_on_union_bps.append(primary_cn_states[arm][p_i])
             arm_seeding_cn_states_on_union_bps.append(seeding_cn_states[arm][s_i])
             arm_truncal_cn_states_on_union_bps.append(truncal_cn_states[arm][t_i])
+            
             
         combined_bps[arm] = boundaries
         combined_types[arm] = labels
@@ -131,6 +146,9 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
         seeding_cn_states_on_union_bps[arm] = arm_seeding_cn_states_on_union_bps
         truncal_cn_states_on_union_bps[arm] = arm_truncal_cn_states_on_union_bps
         
+        primary_trajectory_cn_at_least_2_union_bps[arm] = arm_primary_trajectory_cn_at_least_2_union_bps
+        seeding_trajectory_cn_at_least_2_union_bps[arm] = arm_seeding_trajectory_cn_at_least_2_union_bps
+        truncal_trajectory_cn_at_least_2_union_bps[arm] = arm_truncal_trajectory_cn_at_least_2_union_bps
 
     primary_vs_seeding_results = {
         "primary_cell": primary_cell,
@@ -141,6 +159,9 @@ def get_primary_vs_seeding_genome_wide_cn_trajectories(cell_parent_dict, cna_eve
         "primary_subtrajectory_type": primary_branch_types_on_union_bps,
         "seeding_subtrajectory_type": seeding_branch_types_on_union_bps,
         "truncal_subtrajectory_type": truncal_types_on_union_bps,
+        "primary_subtrajectory_cn_at_least_2": primary_trajectory_cn_at_least_2_union_bps,
+        "seeding_subtrajectory_cn_at_least_2": seeding_trajectory_cn_at_least_2_union_bps,
+        "truncal_subtrajectory_cn_at_least_2": truncal_trajectory_cn_at_least_2_union_bps,
         "combined_bps": combined_bps,
         "combined_types": combined_types
     }
@@ -163,6 +184,10 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
     seeding_branch_types_on_union_bps = primary_vs_seeding_results['seeding_subtrajectory_type']
     truncal_types_on_union_bps = primary_vs_seeding_results['truncal_subtrajectory_type']
     
+    primary_trajectory_cn_at_least_2_union_bps = primary_vs_seeding_results['primary_subtrajectory_cn_at_least_2']
+    seeding_trajectory_cn_at_least_2_union_bps = primary_vs_seeding_results['seeding_subtrajectory_cn_at_least_2']
+    truncal_trajectory_cn_at_least_2_union_bps = primary_vs_seeding_results['truncal_subtrajectory_cn_at_least_2']
+    
     
     rows = []
     
@@ -177,11 +202,15 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
         arm_primary_branch_types_on_union_bps = primary_branch_types_on_union_bps[arm]
         arm_seeding_branch_types_on_union_bps = seeding_branch_types_on_union_bps[arm]
         arm_truncal_types_on_union_bps = truncal_types_on_union_bps[arm]
+        
+        arm_primary_trajectory_cn_at_least_2_union_bps = primary_trajectory_cn_at_least_2_union_bps[arm]
+        arm_seeding_trajectory_cn_at_least_2_union_bps = seeding_trajectory_cn_at_least_2_union_bps[arm]
+        arm_truncal_trajectory_cn_at_least_2_union_bps = truncal_trajectory_cn_at_least_2_union_bps[arm]
 
         if len(boundaries) != len(types) + 1:
             raise ValueError(f'Invalid breakpoints/CN states for {arm}')
 
-        for start, end, type, primary_cn, seeding_cn, truncal_cn, primary_type, seeding_type, truncal_type in zip(boundaries[:-1], 
+        for start, end, type, primary_cn, seeding_cn, truncal_cn, primary_type, seeding_type, truncal_type, primary_cn_at_least_2, seeding_cn_at_least_2, truncal_cn_at_least_2 in zip(boundaries[:-1], 
                                                             boundaries[1:], 
                                                             types, 
                                                             arm_primary_cn_states_on_union_bps, 
@@ -189,7 +218,10 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
                                                             arm_truncal_cn_states_on_union_bps,
                                                             arm_primary_branch_types_on_union_bps,
                                                             arm_seeding_branch_types_on_union_bps,
-                                                            arm_truncal_types_on_union_bps):
+                                                            arm_truncal_types_on_union_bps,
+                                                            arm_primary_trajectory_cn_at_least_2_union_bps,
+                                                            arm_seeding_trajectory_cn_at_least_2_union_bps,
+                                                            arm_truncal_trajectory_cn_at_least_2_union_bps):
             rows.append({
                 'primary_cell': primary_cell,
                 'seeding_cell': seeding_cell,
@@ -200,6 +232,9 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
                 'primary_cell_cn': primary_cn,
                 'seeding_cell_cn': seeding_cn,
                 'truncal_cell_cn': truncal_cn,
+                'primary_subtrajectory_cn_at_least_2': primary_cn_at_least_2,
+                'seeding_subtrajectory_cn_at_least_2': seeding_cn_at_least_2,
+                'truncal_subtrajectory_cn_at_least_2': truncal_cn_at_least_2,
                 'primary_subtrajectory_type': primary_type,
                 'seeding_subtrajectory_type': seeding_type,
                 'truncal_subtrajectory_type': truncal_type,
@@ -215,6 +250,9 @@ def primary_vs_seeding_table(primary_vs_seeding_results):
                                        'primary_cell_cn', 
                                        'seeding_cell_cn', 
                                        'truncal_cell_cn',
+                                       'primary_subtrajectory_cn_at_least_2',
+                                       'seeding_subtrajectory_cn_at_least_2',
+                                       'truncal_subtrajectory_cn_at_least_2',
                                        'primary_subtrajectory_type',
                                        'seeding_subtrajectory_type',
                                        'truncal_subtrajectory_type',
@@ -284,6 +322,9 @@ def main():
         'primary_cell_cn', 
         'seeding_cell_cn', 
         'truncal_cell_cn',
+        'primary_subtrajectory_cn_at_least_2',
+        'seeding_subtrajectory_cn_at_least_2',
+        'truncal_subtrajectory_cn_at_least_2',
         'primary_subtrajectory_type',
         'seeding_subtrajectory_type',
         'truncal_subtrajectory_type',

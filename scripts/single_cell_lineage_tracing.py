@@ -114,7 +114,7 @@ def initialize_diploid_genome(cytoband_path):
 
     return cn_states, bps
 
-def split_at(arm, position, cn_states, bps, trajectory_types):
+def split_at(arm, position, cn_states, bps, trajectory_types, trajectory_cn_at_least_2):
     boundaries = bps[arm]
     index = bisect_left(boundaries, position)
 
@@ -129,21 +129,25 @@ def split_at(arm, position, cn_states, bps, trajectory_types):
         # The cn state between the new boundary and the
         cn_states[arm].insert(index, cn_states[arm][index - 1])
         trajectory_types[arm].insert(index, trajectory_types[arm][index-1])
+        trajectory_cn_at_least_2[arm].insert(index, trajectory_cn_at_least_2[arm][index-1])
 
 
-def apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types):
-    split_at(arm, start, cn_states, bps, trajectory_types)
-    split_at(arm, end, cn_states, bps, trajectory_types)
+def apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types, trajectory_cn_at_least_2):
+    split_at(arm, start, cn_states, bps, trajectory_types, trajectory_cn_at_least_2)
+    split_at(arm, end, cn_states, bps, trajectory_types, trajectory_cn_at_least_2)
 
     boundaries = bps[arm]
     states = cn_states[arm]
     arm_trajectories = trajectory_types[arm]
+    arm_trajectory_cn_at_least_2 = trajectory_cn_at_least_2[arm]
 
     for i, cn in enumerate(states):
         if boundaries[i] >= start and boundaries[i + 1] <= end and cn > 0:
             states[i] = max(0, cn + delta)
             if delta == -1:
                 arm_trajectories[i] = "BDT"
+            if states[i] < 2:
+                arm_trajectory_cn_at_least_2[i] = False 
 
 
 def reconstruct_copy_numbers(lineage_cna_events, starting_cn_states=None, starting_bps=None, cytoband_path=DEFAULT_CYTOBAND_PATH):
@@ -157,6 +161,13 @@ def reconstruct_copy_numbers(lineage_cna_events, starting_cn_states=None, starti
         arm: ["UDT"] * len(states)
         for arm, states in cn_states.items()
     }
+    
+    # record if the CN states on trajectory are all at least 2 
+    trajectory_cn_at_least_2 = {
+        arm: [cn >= 2 for cn in states]
+        for arm, states in cn_states.items()
+    }
+
 
     for event in lineage_cna_events:
         event_type = event['cna_event']
@@ -183,23 +194,24 @@ def reconstruct_copy_numbers(lineage_cna_events, starting_cn_states=None, starti
         end = int(event['end'])
 
         for arm in affected_arms:
-            apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types)
+            apply_delta(arm, start, end, delta, cn_states, bps, trajectory_types, trajectory_cn_at_least_2)
 
-    return cn_states, bps, trajectory_types
+    return cn_states, bps, trajectory_types, trajectory_cn_at_least_2
 
-def copy_number_table(cell_id, cn_states, bps, trajectory_types):
+def copy_number_table(cell_id, cn_states, bps, trajectory_types, trajectory_cn_at_least_2):
     rows = []
 
     for arm in sorted(cn_states, key=lambda name: (int(name[:-1]), name[-1])):
         boundaries = bps[arm]
         states = cn_states[arm]
         arm_trajectory_types = trajectory_types[arm]
+        arm_trajectory_cn_at_least_2 = trajectory_cn_at_least_2[arm]
 
         if len(boundaries) != len(states) + 1 or len(arm_trajectory_types) != len(states):
             raise ValueError(f'Invalid breakpoints/CN states for {arm}')
 
-        for start, end, cn, trajectory_type in zip(
-            boundaries[:-1], boundaries[1:], states, arm_trajectory_types
+        for start, end, cn, trajectory_type, cn_at_least_2 in zip(
+            boundaries[:-1], boundaries[1:], states, arm_trajectory_types, arm_trajectory_cn_at_least_2
         ):
             rows.append({
                 'cell_id': cell_id,
@@ -209,11 +221,12 @@ def copy_number_table(cell_id, cn_states, bps, trajectory_types):
                 'end': end,
                 'cn': cn,
                 'trajectory_type': trajectory_type,
+                'trajectory_cn_at_least_2': cn_at_least_2
             })
 
     return pd.DataFrame(
         rows,
-        columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn', 'trajectory_type'],
+        columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn', 'trajectory_type', 'trajectory_cn_at_least_2'],
     )
 
 def main():
@@ -258,8 +271,8 @@ def main():
     table = pd.DataFrame(columns=['cell_id', 'chr', 'arm', 'start', 'end', 'cn'])
     for cell_id in sampled_cells:
         print(f"Processing cell {cell_id}...")
-        cn_states, bps, trajectory_types = reconstruct_copy_numbers(trace_cna_events(trace_lineage(cell_parent_dict, cell_id), cna_events_dict))
-        table = pd.concat([table, copy_number_table(cell_id, cn_states, bps, trajectory_types)], ignore_index=True)
+        cn_states, bps, trajectory_types, trajectory_cn_at_least_2 = reconstruct_copy_numbers(trace_cna_events(trace_lineage(cell_parent_dict, cell_id), cna_events_dict))
+        table = pd.concat([table, copy_number_table(cell_id, cn_states, bps, trajectory_types, trajectory_cn_at_least_2)], ignore_index=True)
     table.to_csv(args.output_path, sep="\t", index=False)
     return
 
